@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Original Rust examples for the 1977, 1986, and 2006 Dragon Books.">
+  <title>The Dragon Book in Rust</title>
+  <style>
+    :root { color-scheme: light; --ink: #20252b; --muted: #4a5564; --paper: #fbf8f1; --line: #d5cec0; --link: #234e43; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.6 system-ui, sans-serif; }
+    header, main, footer { width: min(72rem, 100% - 2.5rem); margin-inline: auto; }
+    header { padding-block: 3.5rem 2rem; border-bottom: 1px solid var(--line); }
+    h1, h2 { font-family: Georgia, serif; line-height: 1.08; }
+    h1 { font-size: clamp(2.5rem, 7vw, 5rem); margin: .2em 0; }
+    h2 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0 0 .65em; }
+    h3 { line-height: 1.25; margin: 0 0 .5rem; }
+    p { margin: .5rem 0; }
+    a { color: var(--link); text-underline-offset: .2em; }
+    a:focus-visible { outline: 2px solid var(--link); outline-offset: 4px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-weight: 700; font-size: .75rem; color: var(--muted); }
+    .intro { max-width: 53ch; font-size: 1.15rem; }
+    nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; padding: 0; list-style: none; }
+    section { padding-block: 2rem; border-bottom: 1px solid var(--line); }
+    .examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .8rem; padding: 0; list-style: none; }
+    article { height: 100%; padding: 1.15rem; background: #fffdf8; border: 1px solid var(--line); border-radius: .4rem; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: .1rem .7rem; margin: .8rem 0; font-size: .9rem; color: var(--muted); }
+    dt { font-weight: 650; }
+    dd { margin: 0; }
+    pre { padding: .8rem 1rem; overflow-x: auto; background: #eae4d8; border-radius: .35rem; }
+    footer { padding-block: 1.5rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Compiler construction · Rust</p>
+    <h1>The Dragon Book in Rust</h1>
+    <p class="intro">21 original programs covering selected topics from the Green (1977), Red (1986), and Purple (2006) books. Each guide explains the concept, what to look for in the output, and where to read more.</p>
+    <nav aria-label="Example topics">
+      <ul>
+        <li><a href="#start">Start here</a></li>
+        <li><a href="#front-end">Scanning and parsing</a></li>
+        <li><a href="#translation">Translation and semantic analysis</a></li>
+        <li><a href="#runtime">Runtime and code generation</a></li>
+        <li><a href="#optimization">Optimization and program analysis</a></li>
+        <li><a href="#editions">Editions and scope</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section id="start" aria-labelledby="start-title">
+      <h2 id="start-title">Start here</h2>
+      <p>Use Rust 1.85 or later and run these commands in the repository root.</p>
+      <pre><code>cargo run --example tiny_compiler
+cargo test --all-targets --locked</code></pre>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/tiny_compiler/README.md">A tiny compiler and stack machine</a></h3>
+          <p>Follow declarations and arithmetic from text to executable stack instructions.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>1, 2, 5, 7</dd>
+            <dt>1986 Red</dt><dd>1–2; app. A (project theme)</dd>
+            <dt>2006 Purple</dt><dd>1–2; app. A (front-end theme)</dd>
+          </dl>
+          <p><a href="examples/tiny_compiler/main.rs" aria-label="Rust source for A tiny compiler and stack machine">Rust source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="front-end" aria-labelledby="front-end-title">
+      <h2 id="front-end-title">Scanning and parsing</h2>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/lexer/README.md">Tokens and longest match</a></h3>
+          <p>Split source text into token kinds, lexemes, and byte offsets.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3</dd>
+            <dt>1986 Red</dt><dd>2–3</dd>
+            <dt>2006 Purple</dt><dd>2–3</dd>
+          </dl>
+          <p><a href="examples/lexer/main.rs" aria-label="Rust source for Tokens and longest match">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/subset_dfa/README.md">Epsilon-NFA to DFA</a></h3>
+          <p>Turn sets of possible NFA states into deterministic transition rows.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3</dd>
+            <dt>1986 Red</dt><dd>3</dd>
+            <dt>2006 Purple</dt><dd>3</dd>
+          </dl>
+          <p><a href="examples/subset_dfa/main.rs" aria-label="Rust source for Epsilon-NFA to DFA">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/ll1/README.md">FIRST, FOLLOW, and LL(1)</a></h3>
+          <p>Compute a predictive parsing table for balanced brackets.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>4–5</dd>
+            <dt>1986 Red</dt><dd>4</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/ll1/main.rs" aria-label="Rust source for FIRST, FOLLOW, and LL(1)">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/slr/README.md">LR(0) items and SLR parsing</a></h3>
+          <p>Generate item sets and shift/reduce actions for a left-recursive list.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5–6</dd>
+            <dt>1986 Red</dt><dd>4</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/slr/main.rs" aria-label="Rust source for LR(0) items and SLR parsing">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/recovery/README.md">Panic-mode recovery</a></h3>
+          <p>Report a malformed statement and resume at the next semicolon.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>11</dd>
+            <dt>1986 Red</dt><dd>4</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/recovery/main.rs" aria-label="Rust source for Panic-mode recovery">Rust source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="translation" aria-labelledby="translation-title">
+      <h2 id="translation-title">Translation and semantic analysis</h2>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/attributes/README.md">Inherited and synthesized attributes</a></h3>
+          <p>Pass an origin down a tree and synthesize widths on the way back up.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>7 (translation schemes)</dd>
+            <dt>1986 Red</dt><dd>5</dd>
+            <dt>2006 Purple</dt><dd>5</dd>
+          </dl>
+          <p><a href="examples/attributes/main.rs" aria-label="Rust source for Inherited and synthesized attributes">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/scope_types/README.md">Scoped names and type checks</a></h3>
+          <p>Resolve a shadowed name and use its type to check arithmetic.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>2, 9, 11</dd>
+            <dt>1986 Red</dt><dd>6–7</dd>
+            <dt>2006 Purple</dt><dd>2, 6</dd>
+          </dl>
+          <p><a href="examples/scope_types/main.rs" aria-label="Rust source for Scoped names and type checks">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/unification/README.md">Type unification and the occurs check</a></h3>
+          <p>Solve equality constraints between finite function types.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>6</dd>
+            <dt>2006 Purple</dt><dd>—</dd>
+          </dl>
+          <p><a href="examples/unification/main.rs" aria-label="Rust source for Type unification and the occurs check">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/array_layout/README.md">Row-major array addresses</a></h3>
+          <p>Lower a two-dimensional index to a byte offset.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>2, 8</dd>
+            <dt>1986 Red</dt><dd>8–9</dd>
+            <dt>2006 Purple</dt><dd>6, 8</dd>
+          </dl>
+          <p><a href="examples/array_layout/main.rs" aria-label="Rust source for Row-major array addresses">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/backpatch/README.md">Backpatching and short-circuit jumps</a></h3>
+          <p>Fill forward jump targets after their destination instructions are emitted.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>7 (Boolean translation)</dd>
+            <dt>1986 Red</dt><dd>8</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
+          </dl>
+          <p><a href="examples/backpatch/main.rs" aria-label="Rust source for Backpatching and short-circuit jumps">Rust source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="runtime" aria-labelledby="runtime-title">
+      <h2 id="runtime-title">Runtime and code generation</h2>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/frames/README.md">Activation records and static links</a></h3>
+          <p>Distinguish the frame that called a procedure from its lexical parent.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>2, 10</dd>
+            <dt>1986 Red</dt><dd>7</dd>
+            <dt>2006 Purple</dt><dd>7</dd>
+          </dl>
+          <p><a href="examples/frames/main.rs" aria-label="Rust source for Activation records and static links">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/mark_sweep/README.md">Tracing and mark-sweep collection</a></h3>
+          <p>Trace reachable heap objects and reclaim an unrooted cycle.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>7 (storage reclamation)</dd>
+            <dt>2006 Purple</dt><dd>7</dd>
+          </dl>
+          <p><a href="examples/mark_sweep/main.rs" aria-label="Rust source for Tracing and mark-sweep collection">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/register_codegen/README.md">Register needs for expression trees</a></h3>
+          <p>Choose an evaluation order that uses fewer registers.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>15</dd>
+            <dt>1986 Red</dt><dd>9</dd>
+            <dt>2006 Purple</dt><dd>8</dd>
+          </dl>
+          <p><a href="examples/register_codegen/main.rs" aria-label="Rust source for Register needs for expression trees">Rust source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="optimization" aria-labelledby="optimization-title">
+      <h2 id="optimization-title">Optimization and program analysis</h2>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/value_numbering/README.md">Local value numbering</a></h3>
+          <p>Reuse a previously computed value within one basic block.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>12</dd>
+            <dt>1986 Red</dt><dd>9–10</dd>
+            <dt>2006 Purple</dt><dd>8–9</dd>
+          </dl>
+          <p><a href="examples/value_numbering/main.rs" aria-label="Rust source for Local value numbering">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/liveness/README.md">Backward liveness analysis</a></h3>
+          <p>Find which values may still be read along a future path.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>12, 14</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/liveness/main.rs" aria-label="Rust source for Backward liveness analysis">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/reaching_defs/README.md">Forward reaching definitions</a></h3>
+          <p>Find which assignments can supply a value at a control-flow join.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>12, 14</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/reaching_defs/main.rs" aria-label="Rust source for Forward reaching definitions">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/natural_loops/README.md">Dominators and natural loops</a></h3>
+          <p>Find loop headers using dominance and collect each natural loop’s blocks.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>13</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/natural_loops/main.rs" aria-label="Rust source for Dominators and natural loops">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/list_schedule/README.md">Basic-block list scheduling</a></h3>
+          <p>Issue ready instructions subject to dependencies and per-cycle capacity.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>10</dd>
+          </dl>
+          <p><a href="examples/list_schedule/main.rs" aria-label="Rust source for Basic-block list scheduling">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/loop_locality/README.md">Loop interchange and spatial locality</a></h3>
+          <p>Change matrix-multiply traversal while preserving the result.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>11</dd>
+          </dl>
+          <p><a href="examples/loop_locality/main.rs" aria-label="Rust source for Loop interchange and spatial locality">Rust source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/points_to/README.md">Context-insensitive points-to analysis</a></h3>
+          <p>Propagate possible allocation sites through assignments and calls.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>14 (related interprocedural flow)</dd>
+            <dt>1986 Red</dt><dd>10 (related alias analysis)</dd>
+            <dt>2006 Purple</dt><dd>12</dd>
+          </dl>
+          <p><a href="examples/points_to/main.rs" aria-label="Rust source for Context-insensitive points-to analysis">Rust source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="editions" aria-labelledby="editions-title">
+      <h2 id="editions-title">Editions and scope</h2>
+      <p>These programs illustrate selected techniques using original code and sample inputs. Chapter numbers point to related reading. A dash means no direct reading is assigned.</p>
+      <ul>
+        <li><strong>1977 Green.</strong> <cite>Principles of Compiler Design</cite> by Alfred V. Aho and Jeffrey D. Ullman. <a href="https://openlibrary.org/works/OL9922572W/Principles_of_compiler_design?edition=principlesofcomp0000ahoa_x2t2">Open Library contents</a>.</li>
+        <li><strong>1986 Red.</strong> <cite>Compilers: Principles, Techniques, and Tools</cite>, first edition, by Alfred V. Aho, Ravi Sethi, and Jeffrey D. Ullman. <a href="https://elmhurst.ecampus.com/compilers-principles-techniques-tools-aho/bk/9780201100884">1986 contents</a>.</li>
+        <li><strong>2006 Purple.</strong> <cite>Compilers: Principles, Techniques, and Tools</cite>, second edition, by Alfred V. Aho, Monica S. Lam, Ravi Sethi, and Jeffrey D. Ullman. <a href="https://www.pearson.com/en-ca/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472/9780321486813">Pearson contents</a>.</li>
+      </ul>
+      <p>The <a href="README.md#coverage-gaps">coverage gaps</a> include scanner and parser generators, production code generation, and several advanced optimizations and analyses.</p>
+    </section>
+  </main>
+  <footer><a href="README.md">Repository README</a> · <a href="https://github.com/hevangel/compilers_principles_techniques_and_tools">Browse on GitHub</a></footer>
+</body>
+</html>
