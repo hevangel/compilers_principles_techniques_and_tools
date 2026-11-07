@@ -1,3 +1,5 @@
+//! Translate a tiny integer language into bytecode and run it on a stack machine.
+
 use std::collections::BTreeMap;
 use std::process::ExitCode;
 
@@ -15,6 +17,7 @@ enum Token<'a> {
     Semicolon,
 }
 
+// The scanner groups source bytes into the tokens the parser will consume.
 fn lex(source: &str) -> Result<Vec<Token<'_>>, String> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
@@ -28,6 +31,7 @@ fn lex(source: &str) -> Result<Vec<Token<'_>>, String> {
                 while bytes.get(end).is_some_and(u8::is_ascii_alphanumeric) {
                     end += 1;
                 }
+                // Recognize a keyword only after scanning the whole word.
                 match &source[start..end] {
                     "let" => Token::Let,
                     "emit" => Token::Emit,
@@ -72,6 +76,7 @@ struct Program {
     code: Vec<Inst>,
 }
 
+// Name-to-slot bindings are compile-time data. Bytecode carries slot numbers.
 struct Compiler<'a> {
     tokens: std::iter::Peekable<std::vec::IntoIter<Token<'a>>>,
     slots: BTreeMap<&'a str, usize>,
@@ -96,6 +101,7 @@ impl Compiler<'_> {
         }
     }
 
+    // A factor emits code that leaves exactly one value on the operand stack.
     fn factor(&mut self, depth: usize) -> Result<(), String> {
         match self.tokens.next() {
             Some(Token::Number(value)) => self.code.push(Inst::Push(value)),
@@ -116,6 +122,7 @@ impl Compiler<'_> {
         Ok(())
     }
 
+    // Consume an entire chain of products before returning to the addition rule.
     fn term(&mut self, depth: usize) -> Result<(), String> {
         self.factor(depth)?;
         while self.eat(Token::Star) {
@@ -125,6 +132,7 @@ impl Compiler<'_> {
         Ok(())
     }
 
+    // Emit each operation after both operands so the VM can pop them from its stack.
     fn expression(&mut self, depth: usize) -> Result<(), String> {
         self.term(depth)?;
         while self.eat(Token::Plus) {
@@ -145,6 +153,7 @@ impl Compiler<'_> {
                 }
                 self.expect(Token::Equal)?;
                 self.expression(0)?;
+                // Introduce the name after compiling its initializer, so it cannot read itself.
                 let slot = self.slots.len();
                 self.slots.insert(name, slot);
                 self.code.push(Inst::Store(slot));
@@ -174,6 +183,7 @@ fn compile(source: &str) -> Result<Program, String> {
     })
 }
 
+// The operand stack holds temporary results. Slots hold the values of declared names.
 fn execute(program: &Program) -> Vec<i64> {
     let mut stack = Vec::new();
     let mut slots = vec![0; program.slots];
@@ -184,6 +194,7 @@ fn execute(program: &Program) -> Vec<i64> {
             Inst::Load(slot) => stack.push(slots[slot]),
             Inst::Store(slot) => slots[slot] = stack.pop().unwrap(),
             Inst::Add | Inst::Mul => {
+                // The right operand was pushed last, so it is popped first.
                 let right = stack.pop().unwrap();
                 let left = stack.pop().unwrap();
                 let value = match inst {

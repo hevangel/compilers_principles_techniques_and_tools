@@ -1,3 +1,5 @@
+//! Unify finite type expressions by solving equations between their components.
+
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -14,6 +16,7 @@ fn function(from: Type, to: Type) -> Type {
     Type::Function(Box::new(from), Box::new(to))
 }
 
+// Follow previous bindings through variables and through function components.
 fn resolve(ty: &Type, substitutions: &Substitutions) -> Type {
     match ty {
         Type::Var(id) => substitutions
@@ -26,6 +29,7 @@ fn resolve(ty: &Type, substitutions: &Substitutions) -> Type {
     }
 }
 
+// Search a resolved type for the variable we are about to bind.
 fn occurs(id: u8, ty: &Type) -> bool {
     match ty {
         Type::Var(other) => id == *other,
@@ -43,6 +47,7 @@ enum Error {
 fn unify(mut equations: Vec<(Type, Type)>) -> Result<Substitutions, Error> {
     let mut substitutions = Substitutions::new();
     while let Some((left, right)) = equations.pop() {
+        // Normalize both sides so indirect cycles and constructor clashes are visible.
         let left = resolve(&left, &substitutions);
         let right = resolve(&right, &substitutions);
         if left == right {
@@ -53,9 +58,11 @@ fn unify(mut equations: Vec<(Type, Type)>) -> Result<Substitutions, Error> {
                 if occurs(id, &ty) {
                     return Err(Error::InfiniteType(id));
                 }
+                // Later equations will see this binding through resolve.
                 substitutions.insert(id, ty);
             }
             (Type::Function(a, b), Type::Function(c, d)) => {
+                // Equal function types must agree in both argument and result types.
                 equations.extend([(*a, *c), (*b, *d)]);
             }
             (left, right) => return Err(Error::Clash(left, right)),

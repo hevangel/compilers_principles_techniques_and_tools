@@ -1,14 +1,18 @@
+//! Evaluate inherited origins and synthesized widths on a small tree.
+
 enum Shape {
     Strip(u32),
     Join(Box<Shape>, Box<Shape>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
+// These attributes travel upward as the result of placing a subtree.
 struct Attributes {
     width: u32,
     placements: Vec<(u32, u32)>,
 }
 
+// The origin is inherited by this node from its context.
 fn place(shape: &Shape, origin: u32) -> Attributes {
     match shape {
         Shape::Strip(width) => Attributes {
@@ -17,7 +21,9 @@ fn place(shape: &Shape, origin: u32) -> Attributes {
         },
         Shape::Join(left, right) => {
             let mut left = place(left, origin);
+            // The right child's inherited origin depends on the left child's synthesized width.
             let right = place(right, origin + left.width);
+            // Combine both children's synthesized results for the parent.
             left.width += right.width;
             left.placements.extend(right.placements);
             left

@@ -1,5 +1,8 @@
+//! Propagate assignment identities forward through branches and loops.
+
 use std::collections::BTreeSet;
 
+// Each ID identifies one assignment site. Several IDs can define the same variable.
 type Definitions = BTreeSet<usize>;
 
 struct Block {
@@ -13,12 +16,14 @@ fn reaching(blocks: &[Block], variable_of: &[&str]) -> (Vec<Definitions>, Vec<De
     loop {
         let mut changed = false;
         for (index, block) in blocks.iter().enumerate() {
+            // A definition may reach a block along any one of its predecessor paths.
             entry[index] = block
                 .predecessors
                 .iter()
                 .flat_map(|&parent| exit[parent].iter().copied())
                 .collect();
             let mut outgoing = entry[index].clone();
+            // Process assignments in order. A new definition kills earlier ones for the same variable.
             for &definition in &block.assignments {
                 outgoing.retain(|&old| variable_of[old] != variable_of[definition]);
                 outgoing.insert(definition);
@@ -26,6 +31,7 @@ fn reaching(blocks: &[Block], variable_of: &[&str]) -> (Vec<Definitions>, Vec<De
             changed |= outgoing != exit[index];
             exit[index] = outgoing;
         }
+        // Stable outgoing facts give stable incoming unions on the next pass.
         if !changed {
             return (entry, exit);
         }

@@ -26,11 +26,15 @@ The numbers below refer to chapters unless marked as an appendix. A reference po
 
 ### Start here
 
+A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.
+
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [A tiny compiler and stack machine](examples/tiny_compiler/README.md) | 1, 2, 5, 7 | 1–2; app. A (project theme) | 1–2; app. A (front-end theme) |
 
 ### Scanning and parsing
+
+Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with token boundaries and finite automata, compares top-down and bottom-up parsing, and shows how to resume after a syntax error.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
@@ -42,6 +46,8 @@ The numbers below refer to chapters unless marked as an appendix. A reference po
 
 ### Translation and semantic analysis
 
+A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names and checks types. Translation uses that information to produce a lower-level representation, for example by turning array indices into byte offsets and Boolean expressions into jumps.
+
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Inherited and synthesized attributes](examples/attributes/README.md) | 7 (translation schemes) | 5 | 5 |
@@ -52,6 +58,8 @@ The numbers below refer to chapters unless marked as an appendix. A reference po
 
 ### Runtime and code generation
 
+A compiled program still needs ways to store locals, call procedures, manage heap objects, and evaluate expressions on its target machine. These examples connect the runtime representation of data with the instructions a compiler emits to use it.
+
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Activation records and static links](examples/frames/README.md) | 2, 10 | 7 | 7 |
@@ -59,6 +67,8 @@ The numbers below refer to chapters unless marked as an appendix. A reference po
 | [Register needs for expression trees](examples/register_codegen/README.md) | 15 | 9 | 8 |
 
 ### Optimization and program analysis
+
+An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, such as which values might be read or which assignments can reach a block. Start inside a basic block, then follow information through branches, loops, and procedure calls.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |

@@ -1,3 +1,5 @@
+//! Compare matrix-multiply loop orders using a trace of row-major accesses.
+
 #[derive(Default)]
 struct Trace {
     previous: Option<usize>,
@@ -7,6 +9,7 @@ struct Trace {
 
 impl Trace {
     fn read(&mut self, index: usize) {
+        // Count a pair only when the next read advances by one element.
         self.adjacent +=
             usize::from(self.previous.and_then(|last| last.checked_add(1)) == Some(index));
         self.previous = Some(index);
@@ -14,6 +17,7 @@ impl Trace {
     }
 }
 
+// Vary k inside each output cell, so the inner loop strides down a column of B.
 fn original(a: &[i64], b: &[i64], n: usize) -> (Vec<i64>, Trace) {
     let mut c = vec![0_i64; n * n];
     let mut trace = Trace::default();
@@ -29,6 +33,7 @@ fn original(a: &[i64], b: &[i64], n: usize) -> (Vec<i64>, Trace) {
     (c, trace)
 }
 
+// Vary j in the inner loop, so B is read along a contiguous row.
 fn interchanged(a: &[i64], b: &[i64], n: usize) -> (Vec<i64>, Trace) {
     let mut c = vec![0_i64; n * n];
     let mut trace = Trace::default();
@@ -49,6 +54,7 @@ fn main() {
     let b: Vec<i64> = (0..16).rev().collect();
     let (reference, before) = original(&a, &b, 4);
     let (result, after) = interchanged(&a, &b, 4);
+    // Verify the numeric result before comparing memory access patterns.
     assert_eq!(reference, result);
     println!("Product: {result:?}");
     println!(

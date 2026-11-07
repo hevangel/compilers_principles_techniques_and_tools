@@ -1,3 +1,5 @@
+//! Construct an LR(0) automaton and drive a small SLR shift/reduce parser.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -11,6 +13,7 @@ enum Symbol {
 }
 
 use Symbol::*;
+// An item stores a production index and the position of its dot.
 type ItemSet = BTreeSet<(usize, usize)>;
 type Transition = BTreeMap<(usize, Symbol), usize>;
 
@@ -26,6 +29,7 @@ fn after_dot((rule, dot): (usize, usize)) -> Option<Symbol> {
     RULES[rule].1.get(dot).copied()
 }
 
+// A nonterminal after a dot brings in each of its productions with the dot at zero.
 fn closure(mut items: ItemSet) -> ItemSet {
     loop {
         let previous = items.len();
@@ -56,6 +60,7 @@ fn automaton() -> (Vec<ItemSet>, Transition) {
             .filter_map(|&item| after_dot(item))
             .collect();
         for symbol in symbols {
+            // A transition advances only items waiting for this symbol.
             let advanced = sets[state]
                 .iter()
                 .filter(|&&item| after_dot(item) == Some(symbol))
@@ -87,6 +92,7 @@ type Actions = BTreeMap<(usize, Symbol), Action>;
 
 fn actions(sets: &[ItemSet], transitions: &Transition) -> Result<Actions, (usize, Symbol)> {
     let mut actions = Actions::new();
+    // Terminal transitions consume input. Nonterminal transitions are used after reductions.
     for (&key @ (_, symbol), &target) in transitions {
         if matches!(symbol, Name | Comma) {
             actions.insert(key, Action::Shift(target));
@@ -104,6 +110,7 @@ fn actions(sets: &[ItemSet], transitions: &Transition) -> Result<Actions, (usize
                 (&[Comma, End], Action::Reduce(rule))
             };
             for &token in lookaheads {
+                // Two actions in one state/lookahead cell signal a grammar conflict.
                 if actions.insert((state, token), action).is_some() {
                     return Err((state, token));
                 }
@@ -126,6 +133,7 @@ fn parse(tokens: &[Symbol], actions: &Actions, goto: &Transition) -> Option<Vec<
                 stack.push(*state);
                 input.next();
             }
+            // Replace the recognized right-hand side with its left-hand nonterminal via goto.
             Action::Reduce(rule) => {
                 let (lhs, rhs) = RULES[*rule];
                 stack.truncate(stack.len() - rhs.len());

@@ -1,3 +1,5 @@
+//! Schedule instructions subject to dependencies, latency, and issue width.
+
 #[derive(Debug)]
 struct Task {
     name: &'static str,
@@ -13,6 +15,7 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
     {
         return None;
     }
+    // Store a start cycle once a task issues. None means it has yet to start.
     let mut issued = vec![None::<u32>; tasks.len()];
     let mut pending = tasks.len();
     let mut cycle = 0_u32;
@@ -23,6 +26,7 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
             if issued[index].is_some() {
                 continue;
             }
+            // Readiness is the latest completion time of all predecessors.
             let mut ready_at = Some(0);
             for &dep in task.depends_on {
                 let Some(start) = issued[dep] else {
@@ -32,6 +36,7 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
                 ready_at = ready_at.max(Some(start.checked_add(tasks[dep].latency)?));
             }
             if let Some(ready_at) = ready_at {
+                // A ready instruction also needs a free issue slot this cycle.
                 if ready_at <= cycle && slots > 0 {
                     issued[index] = Some(cycle);
                     slots -= 1;
@@ -52,6 +57,7 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
             if slots < width {
                 cycle = cycle.checked_add(1)?;
             } else {
+                // Skip idle cycles. No known future readiness means pending dependencies are cyclic.
                 cycle = next_ready?;
             }
         }

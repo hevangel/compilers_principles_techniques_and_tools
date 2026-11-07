@@ -1,3 +1,5 @@
+//! Replace repeated pure calculations within one basic block with copies.
+
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -13,6 +15,7 @@ enum Expr {
 }
 
 fn number(inputs: usize, code: &[Expr]) -> Vec<Expr> {
+    // Each index maps a temporary to the first temporary holding the same value.
     let mut values: Vec<_> = (0..inputs).collect();
     let mut known = BTreeMap::new();
     let mut output = Vec::new();
@@ -20,10 +23,12 @@ fn number(inputs: usize, code: &[Expr]) -> Vec<Expr> {
         let (result, representative) = match expr {
             Expr::Compute(op, left, right) => {
                 let (mut left, mut right) = (values[left], values[right]);
+                // Canonicalize only commutative operations so subtraction keeps its operand order.
                 if op == Op::Add && left > right {
                     std::mem::swap(&mut left, &mut right);
                 }
                 let fresh = values.len();
+                // The first computation becomes the representative for this expression key.
                 let previous = *known.entry((op, left, right)).or_insert(fresh);
                 let result = if previous == fresh {
                     Expr::Compute(op, left, right)
@@ -35,6 +40,7 @@ fn number(inputs: usize, code: &[Expr]) -> Vec<Expr> {
             Expr::Copy(source) => (Expr::Copy(values[source]), values[source]),
         };
         output.push(result);
+        // Keep the original destination numbering while remembering which value it holds.
         values.push(representative);
     }
     output

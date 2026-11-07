@@ -1,3 +1,5 @@
+//! Label expression trees with register needs and emit code for an abstract machine.
+
 #[derive(Clone, Copy, Debug)]
 enum Op {
     Add,
@@ -28,6 +30,7 @@ impl Plan {
                 let left = Box::new(Self::for_expr(left));
                 let right = Box::new(Self::for_expr(right));
                 let (a, b) = (left.need(), right.need());
+                // Equal child needs require one extra register to save the first result.
                 let need = a.max(b) + usize::from(a == b);
                 Self::Binary {
                     op: *op,
@@ -70,6 +73,7 @@ fn generate(plan: &Plan, base: usize, code: &mut Vec<Inst>) {
         Plan::Binary {
             op, left, right, ..
         } => {
+            // Evaluate the larger subtree first. Each subtree leaves its result in its base register.
             let (left_reg, right_reg) = if left.need() >= right.need() {
                 generate(left, base, code);
                 generate(right, base + 1, code);
@@ -77,8 +81,10 @@ fn generate(plan: &Plan, base: usize, code: &mut Vec<Inst>) {
             } else {
                 generate(right, base, code);
                 generate(left, base + 1, code);
+                // Evaluation order changed, but left and right must still follow the source operation.
                 (base + 1, base)
             };
+            // Both inputs are read before the destination register is overwritten.
             code.push(Inst::Binary {
                 dst: base,
                 op: *op,

@@ -1,13 +1,17 @@
+//! Convert an epsilon-NFA into a table-driven deterministic recognizer.
+
 use std::collections::BTreeSet;
 
 type States = BTreeSet<usize>;
 
 struct Edge {
     from: usize,
+    // None represents an epsilon edge, which consumes no input.
     symbol: Option<u8>,
     to: usize,
 }
 
+// Compute all states reachable without reading another symbol.
 fn closure(mut states: States, edges: &[Edge]) -> States {
     loop {
         let previous = states.len();
@@ -33,16 +37,19 @@ const FINAL: usize = 4;
 fn determinize(edges: &[Edge]) -> Dfa {
     let mut subsets = vec![closure(States::from([0]), edges)];
     let mut rows = Vec::new();
+    // The unfinished rows act as a queue of discovered subsets.
     while rows.len() < subsets.len() {
         let current = rows.len();
         let mut row = Vec::new();
         for symbol in ALPHABET {
+            // Move every possible NFA state on this symbol, then follow epsilon edges.
             let moved = edges
                 .iter()
                 .filter(|edge| edge.symbol == Some(symbol) && subsets[current].contains(&edge.from))
                 .map(|edge| edge.to)
                 .collect();
             let next = closure(moved, edges);
+            // Use the set itself as the identity of a DFA state.
             let index = subsets
                 .iter()
                 .position(|set| *set == next)
@@ -66,6 +73,7 @@ impl Dfa {
             };
             state = self.rows[state][column];
         }
+        // A single accepting NFA state is enough to accept the whole string.
         self.subsets[state].contains(&FINAL)
     }
 }

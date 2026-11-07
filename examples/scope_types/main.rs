@@ -1,3 +1,5 @@
+//! Resolve names in nested scopes and check the types of expressions.
+
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -8,6 +10,7 @@ enum Type {
 
 enum Expr<'a> {
     Name(&'a str),
+    // This tree records that a literal is an integer. The value is irrelevant to type checking.
     IntegerLiteral,
     Add(Box<Expr<'a>>, Box<Expr<'a>>),
 }
@@ -22,6 +25,7 @@ enum Error<'a> {
 type Scope<'a> = BTreeMap<&'a str, Type>;
 
 fn declare<'a>(scope: &mut Scope<'a>, name: &'a str, ty: Type) -> Result<(), Error<'a>> {
+    // A duplicate in this scope must leave the original declaration intact.
     match scope.entry(name) {
         std::collections::btree_map::Entry::Vacant(entry) => {
             entry.insert(ty);
@@ -33,6 +37,7 @@ fn declare<'a>(scope: &mut Scope<'a>, name: &'a str, ty: Type) -> Result<(), Err
 
 fn type_of<'a>(expr: &Expr<'a>, scopes: &[Scope<'a>]) -> Result<Type, Error<'a>> {
     match expr {
+        // Search from the innermost scope outward so the nearest declaration wins.
         Expr::Name(name) => scopes
             .iter()
             .rev()
@@ -40,6 +45,7 @@ fn type_of<'a>(expr: &Expr<'a>, scopes: &[Scope<'a>]) -> Result<Type, Error<'a>>
             .ok_or(Error::Unknown(name)),
         Expr::IntegerLiteral => Ok(Type::Integer),
         Expr::Add(left, right) => {
+            // Type-check both subexpressions before giving the addition its result type.
             for operand in [left, right] {
                 let ty = type_of(operand, scopes)?;
                 if ty != Type::Integer {
@@ -60,6 +66,7 @@ fn main() {
         Box::new(Expr::IntegerLiteral),
     );
     println!("Inner: {:?}", type_of(&expr, &scopes));
+    // Leaving the inner scope exposes the outer binding again.
     scopes.pop();
     println!("Outer: {:?}", type_of(&expr, &scopes));
 }

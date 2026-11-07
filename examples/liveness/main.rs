@@ -1,30 +1,37 @@
+//! Solve backward liveness equations on a control-flow graph with a loop.
+
 use std::collections::BTreeSet;
 
 type Vars = BTreeSet<&'static str>;
 
 struct Block {
+    // USE records reads before a local definition. DEF records assignments in the block.
     uses: Vars,
     defs: Vars,
     successors: Vec<usize>,
 }
 
 fn liveness(blocks: &[Block]) -> (Vec<Vars>, Vec<Vars>) {
+    // Start with no known live values and propagate demands until stable.
     let mut live_in = vec![Vars::new(); blocks.len()];
     let mut live_out = live_in.clone();
     loop {
         let mut changed = false;
         for (index, block) in blocks.iter().enumerate().rev() {
+            // A value is live out if at least one successor needs it.
             let outgoing: Vars = block
                 .successors
                 .iter()
                 .flat_map(|&successor| live_in[successor].iter().copied())
                 .collect();
+            // Definitions kill the old value, but an earlier read still needs it on entry.
             let mut incoming = block.uses.clone();
             incoming.extend(outgoing.difference(&block.defs));
             changed |= incoming != live_in[index];
             live_in[index] = incoming;
             live_out[index] = outgoing;
         }
+        // Stable live-in sets imply stable live-out sets because OUT is computed from IN.
         if !changed {
             return (live_in, live_out);
         }

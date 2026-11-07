@@ -1,3 +1,5 @@
+//! Generate short-circuit Boolean branches by filling forward targets later.
+
 enum Condition {
     Input(usize),
     And(Box<Condition>, Box<Condition>),
@@ -11,6 +13,7 @@ enum Instruction {
     Return(bool),
 }
 
+// Each list contains instruction indices whose targets are still unknown.
 struct Exits {
     on_true: Vec<usize>,
     on_false: Vec<usize>,
@@ -20,6 +23,7 @@ fn patch(code: &mut [Instruction], sites: &[usize], target: usize) {
     for &site in sites {
         match &mut code[site] {
             Instruction::IfTrue(_, destination) | Instruction::Jump(destination) => {
+                // Every recorded jump site should be filled exactly once.
                 assert!(destination.replace(target).is_none());
             }
             Instruction::Return(_) => unreachable!(),
@@ -30,6 +34,7 @@ fn patch(code: &mut [Instruction], sites: &[usize], target: usize) {
 fn emit(condition: &Condition, code: &mut Vec<Instruction>) -> Exits {
     match condition {
         Condition::Input(index) => {
+            // Reserve one exit for a true test and a separate jump for a false test.
             let site = code.len();
             code.extend([Instruction::IfTrue(*index, None), Instruction::Jump(None)]);
             Exits {
@@ -40,6 +45,7 @@ fn emit(condition: &Condition, code: &mut Vec<Instruction>) -> Exits {
         Condition::And(left, right) => {
             let mut left = emit(left, code);
             let next = code.len();
+            // AND evaluates its right side only when the left side is true.
             patch(code, &left.on_true, next);
             let right = emit(right, code);
             left.on_false.extend(right.on_false);
@@ -51,6 +57,7 @@ fn emit(condition: &Condition, code: &mut Vec<Instruction>) -> Exits {
         Condition::Or(left, right) => {
             let mut left = emit(left, code);
             let next = code.len();
+            // OR evaluates its right side only when the left side is false.
             patch(code, &left.on_false, next);
             let right = emit(right, code);
             left.on_true.extend(right.on_true);
@@ -67,6 +74,7 @@ fn compile(condition: &Condition) -> Vec<Instruction> {
     let exits = emit(condition, &mut code);
     let end = code.len();
     code.extend([Instruction::Return(true), Instruction::Return(false)]);
+    // Resolve the outermost exits once both return addresses are available.
     patch(&mut code, &exits.on_true, end);
     patch(&mut code, &exits.on_false, end + 1);
     code
@@ -78,6 +86,7 @@ fn run(code: &[Instruction], inputs: &[bool]) -> (bool, Vec<usize>) {
     loop {
         pc = match code[pc] {
             Instruction::IfTrue(index, target) => {
+                // Record reads to make short-circuit behavior observable in the tests.
                 reads.push(index);
                 if inputs[index] {
                     target.unwrap()

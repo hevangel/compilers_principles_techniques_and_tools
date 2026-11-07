@@ -1,10 +1,14 @@
+//! Solve inclusion constraints for a context-insensitive points-to analysis.
+
 use std::collections::BTreeSet;
 
 type Sites = BTreeSet<&'static str>;
 
 fn solve(mut points_to: Vec<Sites>, inclusions: &[(usize, usize)]) -> Vec<Sites> {
+    // Each pass adds facts to finite sets until no constraint adds anything new.
     loop {
         let mut changed = false;
+        // An assignment or call edge copies possible targets from source to destination.
         for &(source, destination) in inclusions {
             let sites = points_to[source].clone();
             let previous = points_to[destination].len();
@@ -22,11 +26,13 @@ fn example() -> Vec<Sites> {
     // relay(p) { return p }
     const A: usize = 0;
     const B: usize = 1;
+    // Both call sites use these same callee nodes, which merges their facts.
     const PARAMETER: usize = 2;
     const RETURN: usize = 3;
     const X: usize = 4;
     const Y: usize = 5;
     let mut initial = vec![Sites::new(); 6];
+    // Allocation sites seed the initial facts before any propagation.
     initial[A].insert("alloc_A");
     initial[B].insert("alloc_B");
     solve(

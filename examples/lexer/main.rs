@@ -1,3 +1,5 @@
+//! Scan a source string into tokens with borrowed lexemes and byte offsets.
+
 #[derive(Debug, PartialEq, Eq)]
 enum Kind {
     Let,
@@ -9,6 +11,7 @@ enum Kind {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+// The kind serves the parser. The lexeme and offset preserve source information.
 struct Token<'a> {
     kind: Kind,
     lexeme: &'a str,
@@ -19,6 +22,7 @@ fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
     let mut end = 0;
+    // Each token starts at the current cursor and consumes the range start..end.
     while end < bytes.len() {
         let start = end;
         end += 1;
@@ -31,6 +35,7 @@ fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
                 {
                     end += 1;
                 }
+                // Classify the whole identifier before checking for reserved words.
                 if &source[start..end] == "let" {
                     Kind::Let
                 } else {
@@ -43,6 +48,7 @@ fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
                 }
                 Kind::Integer
             }
+            // Prefer the longer operator when the next byte completes it.
             b'=' if bytes.get(end) == Some(&b'=') => {
                 end += 1;
                 Kind::EqualEqual
@@ -51,6 +57,7 @@ fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
             b';' => Kind::Semicolon,
             _ => return Err(start),
         };
+        // Borrow the matched slice. The scanner consumes ASCII bytes before slicing.
         tokens.push(Token {
             kind,
             lexeme: &source[start..end],

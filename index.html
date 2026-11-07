@@ -50,6 +50,7 @@
   <main>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
+      <p>A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.</p>
       <p>Use Rust 1.85 or later and run these commands in the repository root.</p>
       <pre><code>cargo run --example tiny_compiler
 cargo test --all-targets --locked</code></pre>
@@ -68,6 +69,7 @@ cargo test --all-targets --locked</code></pre>
     </section>
     <section id="front-end" aria-labelledby="front-end-title">
       <h2 id="front-end-title">Scanning and parsing</h2>
+      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with token boundaries and finite automata, compares top-down and bottom-up parsing, and shows how to resume after a syntax error.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/lexer/README.md">Tokens and longest match</a></h3>
@@ -123,6 +125,7 @@ cargo test --all-targets --locked</code></pre>
     </section>
     <section id="translation" aria-labelledby="translation-title">
       <h2 id="translation-title">Translation and semantic analysis</h2>
+      <p>A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names and checks types. Translation uses that information to produce a lower-level representation, for example by turning array indices into byte offsets and Boolean expressions into jumps.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/attributes/README.md">Inherited and synthesized attributes</a></h3>
@@ -178,6 +181,7 @@ cargo test --all-targets --locked</code></pre>
     </section>
     <section id="runtime" aria-labelledby="runtime-title">
       <h2 id="runtime-title">Runtime and code generation</h2>
+      <p>A compiled program still needs ways to store locals, call procedures, manage heap objects, and evaluate expressions on its target machine. These examples connect the runtime representation of data with the instructions a compiler emits to use it.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/frames/README.md">Activation records and static links</a></h3>
@@ -213,6 +217,7 @@ cargo test --all-targets --locked</code></pre>
     </section>
     <section id="optimization" aria-labelledby="optimization-title">
       <h2 id="optimization-title">Optimization and program analysis</h2>
+      <p>An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, such as which values might be read or which assignments can reach a block. Start inside a basic block, then follow information through branches, loops, and procedure calls.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/value_numbering/README.md">Local value numbering</a></h3>

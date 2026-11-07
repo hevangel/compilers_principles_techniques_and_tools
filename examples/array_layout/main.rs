@@ -1,11 +1,16 @@
+//! Lower a checked row-major array index to a byte offset.
+
 fn row_major(row: usize, col: usize, rows: usize, cols: usize, width: usize) -> Option<usize> {
+    // Validate each coordinate before flattening it into a single index.
     if row >= rows || col >= cols || width == 0 {
         return None;
     }
+    // Skip complete rows, add the column, then convert elements to bytes.
     row.checked_mul(cols)?.checked_add(col)?.checked_mul(width)
 }
 
 fn main() {
+    // Keep base-address arithmetic separate from the reusable offset calculation.
     let base = 1000;
     let offset = row_major(2, 1, 4, 5, 8).unwrap();
     println!(
