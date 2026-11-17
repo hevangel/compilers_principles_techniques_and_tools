@@ -1,10 +1,12 @@
 # FIRST, FOLLOW, and LL(1)
 
-Compute a predictive parsing table for balanced brackets. See the [Rust source](main.rs).
+Compute a predictive parsing table for balanced brackets. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example ll1
 cargo test --example ll1
+python3 examples/ll1/main.py
+python3 -m unittest examples/ll1/main.py
 ```
 
 ## What the example teaches

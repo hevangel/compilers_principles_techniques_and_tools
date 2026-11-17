@@ -1,0 +1,181 @@
+"""Build an attribute dependency graph, classify S-/L-attributedness, and evaluate topologically."""
+
+from dataclasses import dataclass
+from enum import Enum
+import heapq
+import unittest
+
+AttrInstance = tuple[int, str]
+
+
+class RuleKind(Enum):
+    CONST = "Const"
+    COPY_FIRST = "CopyFirst"
+    ADD_TWO = "AddTwo"
+    ADD_TEN_TIMES_LEFT_PLUS_RIGHT = "AddTenTimesLeftPlusRight"
+
+
+@dataclass(frozen=True)
+class Rule:
+    target: AttrInstance
+    deps: list[AttrInstance]
+    kind: RuleKind
+    const_val: int = 0
+
+
+@dataclass(frozen=True)
+class ParseNode:
+    parent: int | None
+    children: list[int]
+
+
+class SddClass(Enum):
+    S_ATTRIBUTED = "SAttributed"
+    L_ATTRIBUTED = "LAttributed"
+    GENERAL_ACYCLIC = "GeneralAcyclic"
+
+
+class CycleError(ValueError):
+    def __init__(self, nodes: list[AttrInstance]) -> None:
+        super().__init__(f"circular attribute dependency involving {nodes}")
+        self.nodes = nodes
+
+
+def classify_sdd(nodes: list[ParseNode], rules: list[Rule]) -> SddClass:
+    is_s = True
+    is_l = True
+    for rule in rules:
+        target_node, target_attr = rule.target
+        is_synth = target_attr.startswith("syn_")
+        for dep_node, _ in rule.deps:
+            if dep_node == target_node:
+                continue
+            target_is_parent = dep_node in nodes[target_node].children
+            if not is_synth or not target_is_parent:
+                is_s = False
+            if is_synth:
+                if not target_is_parent:
+                    is_l = False
+            else:
+                parent = nodes[target_node].parent
+                if parent is None:
+                    is_l = False
+                else:
+                    pos = nodes[parent].children.index(target_node)
+                    left_siblings = nodes[parent].children[:pos]
+                    if dep_node != parent and dep_node not in left_siblings:
+                        is_l = False
+    if is_s:
+        return SddClass.S_ATTRIBUTED
+    if is_l:
+        return SddClass.L_ATTRIBUTED
+    return SddClass.GENERAL_ACYCLIC
+
+
+def evaluate_sdd(rules: list[Rule]) -> tuple[list[AttrInstance], dict[AttrInstance, int]]:
+    rule_by_target = {r.target: r for r in rules}
+    all_nodes: set[AttrInstance] = set(rule_by_target)
+    for r in rules:
+        all_nodes.update(r.deps)
+
+    in_degree: dict[AttrInstance, int] = {n: 0 for n in all_nodes}
+    dependents: dict[AttrInstance, list[AttrInstance]] = {}
+    for r in rules:
+        for dep in r.deps:
+            if dep not in rule_by_target:
+                raise ValueError(f"missing rule for dependency {dep}")
+            in_degree[r.target] += 1
+            dependents.setdefault(dep, []).append(r.target)
+
+    heap = sorted(k for k, deg in in_degree.items() if deg == 0)
+    heapq.heapify(heap)
+    order: list[AttrInstance] = []
+    values: dict[AttrInstance, int] = {}
+
+    while heap:
+        node = heapq.heappop(heap)
+        rule = rule_by_target[node]
+        if rule.kind == RuleKind.CONST:
+            val = rule.const_val
+        elif rule.kind == RuleKind.COPY_FIRST:
+            val = values[rule.deps[0]]
+        elif rule.kind == RuleKind.ADD_TWO:
+            val = values[rule.deps[0]] + values[rule.deps[1]]
+        else:
+            val = 10 * values[rule.deps[0]] + values[rule.deps[1]]
+        values[node] = val
+        order.append(node)
+        for child in dependents.get(node, []):
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                heapq.heappush(heap, child)
+
+    if len(order) != len(all_nodes):
+        raise CycleError(sorted(k for k, deg in in_degree.items() if deg > 0))
+    return order, values
+
+
+def sample_l_attributed() -> tuple[list[ParseNode], list[Rule]]:
+    nodes = [
+        ParseNode(None, [1, 2]),
+        ParseNode(0, []),
+        ParseNode(0, [3, 4]),
+        ParseNode(2, []),
+        ParseNode(2, []),
+    ]
+    rules = [
+        Rule((1, "syn_val"), [], RuleKind.CONST, const_val=3),
+        Rule((2, "inh_acc"), [(1, "syn_val")], RuleKind.COPY_FIRST),
+        Rule((3, "syn_val"), [], RuleKind.CONST, const_val=5),
+        Rule(
+            (4, "inh_acc"),
+            [(2, "inh_acc"), (3, "syn_val")],
+            RuleKind.ADD_TEN_TIMES_LEFT_PLUS_RIGHT,
+        ),
+        Rule((4, "syn_val"), [(4, "inh_acc")], RuleKind.COPY_FIRST),
+        Rule((2, "syn_val"), [(4, "syn_val")], RuleKind.COPY_FIRST),
+        Rule((0, "syn_val"), [(2, "syn_val")], RuleKind.COPY_FIRST),
+    ]
+    return nodes, rules
+
+
+def main() -> None:
+    nodes, rules = sample_l_attributed()
+    sdd_class = classify_sdd(nodes, rules)
+    order, values = evaluate_sdd(rules)
+    print(f"SDD class: {sdd_class.value}")
+    print("Topological evaluation order:")
+    for attr in order:
+        print(f"  {attr} = {values[attr]}")
+
+
+class SddEvalTests(unittest.TestCase):
+    def test_evaluates_l_attributed_sdd_in_topological_order(self) -> None:
+        nodes, rules = sample_l_attributed()
+        self.assertEqual(classify_sdd(nodes, rules), SddClass.L_ATTRIBUTED)
+        order, values = evaluate_sdd(rules)
+        self.assertEqual(len(order), len(rules))
+        self.assertEqual(values[(0, "syn_val")], 35)
+        self.assertEqual(values[(2, "inh_acc")], 3)
+        self.assertEqual(values[(4, "inh_acc")], 35)
+
+    def test_detects_cycles_and_non_l_attributed_dependencies(self) -> None:
+        nodes = [ParseNode(None, [1, 2]), ParseNode(0, []), ParseNode(0, [])]
+        rtl_rules = [
+            Rule((2, "syn_val"), [], RuleKind.CONST, const_val=7),
+            Rule((1, "inh_x"), [(2, "syn_val")], RuleKind.COPY_FIRST),
+            Rule((0, "syn_val"), [(1, "inh_x"), (2, "syn_val")], RuleKind.ADD_TWO),
+        ]
+        self.assertEqual(classify_sdd(nodes, rtl_rules), SddClass.GENERAL_ACYCLIC)
+        self.assertEqual(evaluate_sdd(rtl_rules)[1][(0, "syn_val")], 14)
+
+        cyclic = [
+            Rule((1, "syn_a"), [(2, "inh_b")], RuleKind.COPY_FIRST),
+            Rule((2, "inh_b"), [(1, "syn_a")], RuleKind.COPY_FIRST),
+        ]
+        with self.assertRaises(CycleError):
+            evaluate_sdd(cyclic)
+
+
+if __name__ == "__main__":
+    main()

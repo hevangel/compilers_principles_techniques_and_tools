@@ -1,10 +1,12 @@
 # A tiny compiler and stack machine
 
-Follow declarations and arithmetic from text to executable stack instructions. See the [Rust source](main.rs).
+Follow declarations and arithmetic from text to executable stack instructions. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example tiny_compiler
 cargo test --example tiny_compiler
+python3 examples/tiny_compiler/main.py
+python3 -m unittest examples/tiny_compiler/main.py
 ```
 
 ## What the example teaches

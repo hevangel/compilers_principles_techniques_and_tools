@@ -1,10 +1,12 @@
 # Row-major array addresses
 
-Lower a two-dimensional index to a byte offset. See the [Rust source](main.rs).
+Lower a two-dimensional index to a byte offset. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example array_layout
 cargo test --example array_layout
+python3 examples/array_layout/main.py
+python3 -m unittest examples/array_layout/main.py
 ```
 
 ## What the example teaches

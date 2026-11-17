@@ -1,10 +1,12 @@
 # Register needs for expression trees
 
-Choose an evaluation order that uses fewer registers. See the [Rust source](main.rs).
+Choose an evaluation order that uses fewer registers. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example register_codegen
 cargo test --example register_codegen
+python3 examples/register_codegen/main.py
+python3 -m unittest examples/register_codegen/main.py
 ```
 
 ## What the example teaches

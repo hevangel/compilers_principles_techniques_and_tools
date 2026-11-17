@@ -1,10 +1,12 @@
 # Tracing and mark-sweep collection
 
-Trace reachable heap objects and reclaim an unrooted cycle. See the [Rust source](main.rs).
+Trace reachable heap objects and reclaim an unrooted cycle. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example mark_sweep
 cargo test --example mark_sweep
+python3 examples/mark_sweep/main.py
+python3 -m unittest examples/mark_sweep/main.py
 ```
 
 ## What the example teaches

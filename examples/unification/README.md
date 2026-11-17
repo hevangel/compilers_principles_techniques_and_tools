@@ -1,10 +1,12 @@
 # Type unification and the occurs check
 
-Solve equality constraints between finite function types. See the [Rust source](main.rs).
+Solve equality constraints between finite function types. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example unification
 cargo test --example unification
+python3 examples/unification/main.py
+python3 -m unittest examples/unification/main.py
 ```
 
 ## What the example teaches
@@ -36,7 +38,7 @@ The demo specializes a function with two type variables to an integer-to-Boolean
 
 | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- |
-| — | 6 | — |
+| — | 6 | 6 |
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 

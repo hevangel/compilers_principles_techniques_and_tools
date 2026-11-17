@@ -1,10 +1,12 @@
 # Forward reaching definitions
 
-Find which assignments can supply a value at a control-flow join. See the [Rust source](main.rs).
+Find which assignments can supply a value at a control-flow join. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example reaching_defs
 cargo test --example reaching_defs
+python3 examples/reaching_defs/main.py
+python3 -m unittest examples/reaching_defs/main.py
 ```
 
 ## What the example teaches
@@ -47,4 +49,4 @@ At the join, both branch definitions of `x` reach the block, along with the entr
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The program uses scalar variables and a control-flow graph specified in Rust.
+The program uses scalar variables and a control-flow graph specified directly in code.

@@ -1,10 +1,12 @@
 # Scoped names and type checks
 
-Resolve a shadowed name and use its type to check arithmetic. See the [Rust source](main.rs).
+Resolve a shadowed name and use its type to check arithmetic. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example scope_types
 cargo test --example scope_types
+python3 examples/scope_types/main.py
+python3 -m unittest examples/scope_types/main.py
 ```
 
 ## What the example teaches

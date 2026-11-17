@@ -1,10 +1,12 @@
 # Loop interchange and spatial locality
 
-Change matrix-multiply traversal while preserving the result. See the [Rust source](main.rs).
+Change matrix-multiply traversal while preserving the result. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example loop_locality
 cargo test --example loop_locality
+python3 examples/loop_locality/main.py
+python3 -m unittest examples/loop_locality/main.py
 ```
 
 ## What the example teaches

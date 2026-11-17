@@ -1,10 +1,12 @@
 # Local value numbering
 
-Reuse a previously computed value within one basic block. See the [Rust source](main.rs).
+Reuse a previously computed value within one basic block. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example value_numbering
 cargo test --example value_numbering
+python3 examples/value_numbering/main.py
+python3 -m unittest examples/value_numbering/main.py
 ```
 
 ## What the example teaches

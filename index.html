@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Original Rust examples for the 1977, 1986, and 2006 Dragon Books.">
-  <title>The Dragon Book in Rust</title>
+  <meta name="description" content="49 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <title>The Dragon Book in Rust and Python</title>
   <style>
     :root { color-scheme: light; --ink: #20252b; --muted: #4a5564; --paper: #fbf8f1; --line: #d5cec0; --link: #234e43; }
     * { box-sizing: border-box; }
@@ -19,7 +19,7 @@
     a { color: var(--link); text-underline-offset: .2em; }
     a:focus-visible { outline: 2px solid var(--link); outline-offset: 4px; }
     .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-weight: 700; font-size: .75rem; color: var(--muted); }
-    .intro { max-width: 53ch; font-size: 1.15rem; }
+    .intro { max-width: 56ch; font-size: 1.15rem; }
     nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; padding: 0; list-style: none; }
     section { padding-block: 2rem; border-bottom: 1px solid var(--line); }
     .examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .8rem; padding: 0; list-style: none; }
@@ -33,9 +33,9 @@
 </head>
 <body>
   <header>
-    <p class="eyebrow">Compiler construction · Rust</p>
-    <h1>The Dragon Book in Rust</h1>
-    <p class="intro">21 original programs covering selected topics from the Green (1977), Red (1986), and Purple (2006) books. Each guide explains the concept, what to look for in the output, and where to read more.</p>
+    <p class="eyebrow">Compiler construction · Rust &amp; Python</p>
+    <h1>The Dragon Book in Rust and Python</h1>
+    <p class="intro">49 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Each guide explains the concept, what to look for in the output, and where to read more.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -51,9 +51,11 @@
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
       <p>A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.</p>
-      <p>Use Rust 1.85 or later and run these commands in the repository root.</p>
+      <p>Use Rust 1.85 or later (or Python 3.11 or later) and run these commands in the repository root.</p>
       <pre><code>cargo run --example tiny_compiler
-cargo test --all-targets --locked</code></pre>
+cargo test --all-targets --locked
+python3 examples/tiny_compiler/main.py
+python3 -m unittest examples/*/main.py</code></pre>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/tiny_compiler/README.md">A tiny compiler and stack machine</a></h3>
@@ -63,13 +65,13 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>1–2; app. A (project theme)</dd>
             <dt>2006 Purple</dt><dd>1–2; app. A (front-end theme)</dd>
           </dl>
-          <p><a href="examples/tiny_compiler/main.rs" aria-label="Rust source for A tiny compiler and stack machine">Rust source</a></p>
+          <p><a href="examples/tiny_compiler/main.rs" aria-label="Rust source for A tiny compiler and stack machine">Rust source</a> · <a href="examples/tiny_compiler/main.py" aria-label="Python source for A tiny compiler and stack machine">Python source</a></p>
         </article></li>
       </ul>
     </section>
     <section id="front-end" aria-labelledby="front-end-title">
       <h2 id="front-end-title">Scanning and parsing</h2>
-      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with token boundaries and finite automata, compares top-down and bottom-up parsing, and shows how to resume after a syntax error.</p>
+      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section covers regular expressions, Thompson/direct automata, DFA minimization, grammar rewriting, top-down and bottom-up parsers, ambiguity resolution, and syntax-error recovery.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/lexer/README.md">Tokens and longest match</a></h3>
@@ -79,7 +81,17 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>2–3</dd>
             <dt>2006 Purple</dt><dd>2–3</dd>
           </dl>
-          <p><a href="examples/lexer/main.rs" aria-label="Rust source for Tokens and longest match">Rust source</a></p>
+          <p><a href="examples/lexer/main.rs">Rust source</a> · <a href="examples/lexer/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/regex_automata/README.md">Regex to Thompson NFA and Direct DFA</a></h3>
+          <p>Parse regular expressions into an AST and lower them both to a Thompson NFA and directly to a DFA using <code>followpos</code>.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3</dd>
+            <dt>1986 Red</dt><dd>3</dd>
+            <dt>2006 Purple</dt><dd>3</dd>
+          </dl>
+          <p><a href="examples/regex_automata/main.rs">Rust source</a> · <a href="examples/regex_automata/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/subset_dfa/README.md">Epsilon-NFA to DFA</a></h3>
@@ -89,7 +101,27 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>3</dd>
             <dt>2006 Purple</dt><dd>3</dd>
           </dl>
-          <p><a href="examples/subset_dfa/main.rs" aria-label="Rust source for Epsilon-NFA to DFA">Rust source</a></p>
+          <p><a href="examples/subset_dfa/main.rs">Rust source</a> · <a href="examples/subset_dfa/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/dfa_minimize/README.md">DFA State Minimization</a></h3>
+          <p>Collapse indistinguishable states in a deterministic finite automaton using partition refinement.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3</dd>
+            <dt>1986 Red</dt><dd>3</dd>
+            <dt>2006 Purple</dt><dd>3</dd>
+          </dl>
+          <p><a href="examples/dfa_minimize/main.rs">Rust source</a> · <a href="examples/dfa_minimize/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/grammar_rewrite/README.md">Grammar Rewriting: Left Recursion &amp; Factoring</a></h3>
+          <p>Eliminate indirect and direct left recursion and left-factor shared prefixes for predictive top-down parsing.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>4–5</dd>
+            <dt>1986 Red</dt><dd>4</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/grammar_rewrite/main.rs">Rust source</a> · <a href="examples/grammar_rewrite/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/ll1/README.md">FIRST, FOLLOW, and LL(1)</a></h3>
@@ -99,7 +131,7 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>4</dd>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
-          <p><a href="examples/ll1/main.rs" aria-label="Rust source for FIRST, FOLLOW, and LL(1)">Rust source</a></p>
+          <p><a href="examples/ll1/main.rs">Rust source</a> · <a href="examples/ll1/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/slr/README.md">LR(0) items and SLR parsing</a></h3>
@@ -109,7 +141,27 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>4</dd>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
-          <p><a href="examples/slr/main.rs" aria-label="Rust source for LR(0) items and SLR parsing">Rust source</a></p>
+          <p><a href="examples/slr/main.rs">Rust source</a> · <a href="examples/slr/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/lalr/README.md">Canonical LR(1), LALR(1), and Table Compaction</a></h3>
+          <p>Compare SLR(1), LALR(1), and canonical LR(1) tables, core merging, conflict detection, and default-action compaction.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5–6</dd>
+            <dt>1986 Red</dt><dd>4</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/lalr/main.rs">Rust source</a> · <a href="examples/lalr/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/precedence_parse/README.md">Ambiguous Precedence and Associativity Resolution</a></h3>
+          <p>Resolve shift/reduce ambiguities in expression grammars and dangling-else constructs with precedence tables.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5–6</dd>
+            <dt>1986 Red</dt><dd>4 (§4.6, §4.8)</dd>
+            <dt>2006 Purple</dt><dd>4</dd>
+          </dl>
+          <p><a href="examples/precedence_parse/main.rs">Rust source</a> · <a href="examples/precedence_parse/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/recovery/README.md">Panic-mode recovery</a></h3>
@@ -119,13 +171,13 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>4</dd>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
-          <p><a href="examples/recovery/main.rs" aria-label="Rust source for Panic-mode recovery">Rust source</a></p>
+          <p><a href="examples/recovery/main.rs">Rust source</a> · <a href="examples/recovery/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
     <section id="translation" aria-labelledby="translation-title">
       <h2 id="translation-title">Translation and semantic analysis</h2>
-      <p>A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names and checks types. Translation uses that information to produce a lower-level representation, for example by turning array indices into byte offsets and Boolean expressions into jumps.</p>
+      <p>Semantic analysis resolves names, infers polymorphic types, handles coercions and overloadings, and computes aligned record and array addresses. Syntax-directed translation turns parse trees into DAGs, SSA graphs, three-address IR, switch dispatch, and backpatched jumps.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/attributes/README.md">Inherited and synthesized attributes</a></h3>
@@ -135,7 +187,37 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>5</dd>
             <dt>2006 Purple</dt><dd>5</dd>
           </dl>
-          <p><a href="examples/attributes/main.rs" aria-label="Rust source for Inherited and synthesized attributes">Rust source</a></p>
+          <p><a href="examples/attributes/main.rs">Rust source</a> · <a href="examples/attributes/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/sdd_eval/README.md">Attribute Dependency Graph and Topological Evaluator</a></h3>
+          <p>Build attribute dependency graphs, classify S- and L-attributed rules, and evaluate topologically.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>7</dd>
+            <dt>1986 Red</dt><dd>5</dd>
+            <dt>2006 Purple</dt><dd>5</dd>
+          </dl>
+          <p><a href="examples/sdd_eval/main.rs">Rust source</a> · <a href="examples/sdd_eval/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/expr_dag/README.md">Expression DAGs and Value-Number Hashing</a></h3>
+          <p>Hash-cons expressions into a shared DAG with commutative normalization and alias-epoch invalidation.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>7, 12</dd>
+            <dt>1986 Red</dt><dd>5, 9</dd>
+            <dt>2006 Purple</dt><dd>5–6, 8</dd>
+          </dl>
+          <p><a href="examples/expr_dag/main.rs">Rust source</a> · <a href="examples/expr_dag/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/ssa/README.md">Static Single-Assignment (SSA) Construction</a></h3>
+          <p>Compute dominance frontiers, place minimal pruned φ-functions, fold constants, and lower back out of SSA.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>6, 9</dd>
+          </dl>
+          <p><a href="examples/ssa/main.rs">Rust source</a> · <a href="examples/ssa/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/scope_types/README.md">Scoped names and type checks</a></h3>
@@ -145,7 +227,7 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>6–7</dd>
             <dt>2006 Purple</dt><dd>2, 6</dd>
           </dl>
-          <p><a href="examples/scope_types/main.rs" aria-label="Rust source for Scoped names and type checks">Rust source</a></p>
+          <p><a href="examples/scope_types/main.rs">Rust source</a> · <a href="examples/scope_types/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/unification/README.md">Type unification and the occurs check</a></h3>
@@ -153,9 +235,29 @@ cargo test --all-targets --locked</code></pre>
           <dl aria-label="Related chapters by edition">
             <dt>1977 Green</dt><dd>—</dd>
             <dt>1986 Red</dt><dd>6</dd>
-            <dt>2006 Purple</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
           </dl>
-          <p><a href="examples/unification/main.rs" aria-label="Rust source for Type unification and the occurs check">Rust source</a></p>
+          <p><a href="examples/unification/main.rs">Rust source</a> · <a href="examples/unification/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/poly_infer/README.md">Hindley-Milner Let-Polymorphic Type Inference</a></h3>
+          <p>Infer polymorphic <code>let</code> bindings via generalization/instantiation and compare structural vs. nominal records.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>6</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
+          </dl>
+          <p><a href="examples/poly_infer/main.rs">Rust source</a> · <a href="examples/poly_infer/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/overload_coerce/README.md">Type Coercions and Two-Pass Overload Resolution</a></h3>
+          <p>Widen primitives along an acyclic hierarchy and narrow overloaded calls top-down by expected return type.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>6</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
+          </dl>
+          <p><a href="examples/overload_coerce/main.rs">Rust source</a> · <a href="examples/overload_coerce/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/array_layout/README.md">Row-major array addresses</a></h3>
@@ -165,7 +267,7 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>8–9</dd>
             <dt>2006 Purple</dt><dd>6, 8</dd>
           </dl>
-          <p><a href="examples/array_layout/main.rs" aria-label="Rust source for Row-major array addresses">Rust source</a></p>
+          <p><a href="examples/array_layout/main.rs">Rust source</a> · <a href="examples/array_layout/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/backpatch/README.md">Backpatching and short-circuit jumps</a></h3>
@@ -175,13 +277,33 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>8</dd>
             <dt>2006 Purple</dt><dd>6</dd>
           </dl>
-          <p><a href="examples/backpatch/main.rs" aria-label="Rust source for Backpatching and short-circuit jumps">Rust source</a></p>
+          <p><a href="examples/backpatch/main.rs">Rust source</a> · <a href="examples/backpatch/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/switch_lower/README.md">Switch Lowering and Break/Continue Backpatching</a></h3>
+          <p>Dispatch dense/sparse switches via jump tables or binary trees and patch nested loop <code>break</code>/<code>continue</code> stacks.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>7</dd>
+            <dt>1986 Red</dt><dd>8</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
+          </dl>
+          <p><a href="examples/switch_lower/main.rs">Rust source</a> · <a href="examples/switch_lower/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/record_ir/README.md">Record Field Layout and Quadruple / Triple IR</a></h3>
+          <p>Lay out aligned nested structs/unions and compare quadruples, triples, and indirect triples under instruction reordering.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>2, 8</dd>
+            <dt>1986 Red</dt><dd>8</dd>
+            <dt>2006 Purple</dt><dd>6</dd>
+          </dl>
+          <p><a href="examples/record_ir/main.rs">Rust source</a> · <a href="examples/record_ir/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
     <section id="runtime" aria-labelledby="runtime-title">
       <h2 id="runtime-title">Runtime and code generation</h2>
-      <p>A compiled program still needs ways to store locals, call procedures, manage heap objects, and evaluate expressions on its target machine. These examples connect the runtime representation of data with the instructions a compiler emits to use it.</p>
+      <p>A compiled program needs ways to organize activation records and variable-length stack arrays, collect garbage across generations or incrementally, allocate registers globally, tile expression trees, and emit target instructions.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/frames/README.md">Activation records and static links</a></h3>
@@ -191,7 +313,17 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>7</dd>
             <dt>2006 Purple</dt><dd>7</dd>
           </dl>
-          <p><a href="examples/frames/main.rs" aria-label="Rust source for Activation records and static links">Rust source</a></p>
+          <p><a href="examples/frames/main.rs">Rust source</a> · <a href="examples/frames/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/display_vla/README.md">Lexical Display vs Static Links and Stack VLAs</a></h3>
+          <p>Compare O(1) display array lookups against static-link chain walks and allocate stack variable-length arrays.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>2, 10</dd>
+            <dt>1986 Red</dt><dd>7</dd>
+            <dt>2006 Purple</dt><dd>7</dd>
+          </dl>
+          <p><a href="examples/display_vla/main.rs">Rust source</a> · <a href="examples/display_vla/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/mark_sweep/README.md">Tracing and mark-sweep collection</a></h3>
@@ -201,7 +333,27 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>7 (storage reclamation)</dd>
             <dt>2006 Purple</dt><dd>7</dd>
           </dl>
-          <p><a href="examples/mark_sweep/main.rs" aria-label="Rust source for Tracing and mark-sweep collection">Rust source</a></p>
+          <p><a href="examples/mark_sweep/main.rs">Rust source</a> · <a href="examples/mark_sweep/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/copying_gc/README.md">Cheney Semispace Copying and Sliding Mark-Compact GC</a></h3>
+          <p>Compare Cheney breadth-first semispace copying collection against three-pass sliding Mark-Compact collection.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>7 (reclamation)</dd>
+            <dt>2006 Purple</dt><dd>7</dd>
+          </dl>
+          <p><a href="examples/copying_gc/main.rs">Rust source</a> · <a href="examples/copying_gc/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/generational_gc/README.md">Generational, Tri-Color Incremental, and Reference-Counting GC</a></h3>
+          <p>Track inter-generational write barriers, maintain tri-color invariants, and contrast reference-counting cycle leaks.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>7</dd>
+            <dt>2006 Purple</dt><dd>7</dd>
+          </dl>
+          <p><a href="examples/generational_gc/main.rs">Rust source</a> · <a href="examples/generational_gc/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/register_codegen/README.md">Register needs for expression trees</a></h3>
@@ -211,13 +363,43 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>9</dd>
             <dt>2006 Purple</dt><dd>8</dd>
           </dl>
-          <p><a href="examples/register_codegen/main.rs" aria-label="Rust source for Register needs for expression trees">Rust source</a></p>
+          <p><a href="examples/register_codegen/main.rs">Rust source</a> · <a href="examples/register_codegen/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/reg_desc_codegen/README.md">Register/Address Descriptors, Next-Use, and <code>getReg</code></a></h3>
+          <p>Compute backward next-use/liveness info and emit RISC code via register/address descriptors and spilling.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>15</dd>
+            <dt>1986 Red</dt><dd>9</dd>
+            <dt>2006 Purple</dt><dd>8</dd>
+          </dl>
+          <p><a href="examples/reg_desc_codegen/main.rs">Rust source</a> · <a href="examples/reg_desc_codegen/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/graph_color_regalloc/README.md">Global Register Allocation by Graph Coloring</a></h3>
+          <p>Weight CFG liveness interference edges by <code>10^loop_depth</code> and allocate registers with Kempe simplify/select.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>15</dd>
+            <dt>1986 Red</dt><dd>9</dd>
+            <dt>2006 Purple</dt><dd>8</dd>
+          </dl>
+          <p><a href="examples/graph_color_regalloc/main.rs">Rust source</a> · <a href="examples/graph_color_regalloc/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/dp_tiling/README.md">Dynamic-Programming Tree Tiling and Peephole Optimization</a></h3>
+          <p>Cover expression trees with minimum-cost target tiles using DP cost vectors and apply sliding-window peephole passes.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>15</dd>
+            <dt>1986 Red</dt><dd>9</dd>
+            <dt>2006 Purple</dt><dd>8</dd>
+          </dl>
+          <p><a href="examples/dp_tiling/main.rs">Rust source</a> · <a href="examples/dp_tiling/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
     <section id="optimization" aria-labelledby="optimization-title">
       <h2 id="optimization-title">Optimization and program analysis</h2>
-      <p>An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, such as which values might be read or which assignments can reach a block. Start inside a basic block, then follow information through branches, loops, and procedure calls.</p>
+      <p>Optimizations preserve observable behavior using sound analysis facts: local value numbering, classic bitvector and lattice data-flow frameworks, lazy code motion, loop optimizations, T1/T2 region analysis, modulo scheduling, polyhedral dependence &amp; affine partitioning, and context-sensitive / Datalog-ROBDD pointer analysis.</p>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/value_numbering/README.md">Local value numbering</a></h3>
@@ -227,7 +409,7 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>9–10</dd>
             <dt>2006 Purple</dt><dd>8–9</dd>
           </dl>
-          <p><a href="examples/value_numbering/main.rs" aria-label="Rust source for Local value numbering">Rust source</a></p>
+          <p><a href="examples/value_numbering/main.rs">Rust source</a> · <a href="examples/value_numbering/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/liveness/README.md">Backward liveness analysis</a></h3>
@@ -237,7 +419,7 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>10</dd>
             <dt>2006 Purple</dt><dd>9</dd>
           </dl>
-          <p><a href="examples/liveness/main.rs" aria-label="Rust source for Backward liveness analysis">Rust source</a></p>
+          <p><a href="examples/liveness/main.rs">Rust source</a> · <a href="examples/liveness/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/reaching_defs/README.md">Forward reaching definitions</a></h3>
@@ -247,7 +429,37 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>10</dd>
             <dt>2006 Purple</dt><dd>9</dd>
           </dl>
-          <p><a href="examples/reaching_defs/main.rs" aria-label="Rust source for Forward reaching definitions">Rust source</a></p>
+          <p><a href="examples/reaching_defs/main.rs">Rust source</a> · <a href="examples/reaching_defs/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/available_exprs/README.md">Available Expressions, Global CSE, and Copy Propagation</a></h3>
+          <p>Compute available expressions via must-analysis initialized to the universe, eliminate global CSEs, and propagate copies.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>12, 14</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/available_exprs/main.rs">Rust source</a> · <a href="examples/available_exprs/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/const_prop/README.md">Semilattice Constant Propagation (MFP vs MOP)</a></h3>
+          <p>Evaluate flat-lattice constant propagation and exhibit a diamond CFG witnessing non-distributivity.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/const_prop/main.rs">Rust source</a> · <a href="examples/const_prop/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/lazy_code_motion/README.md">Lazy Code Motion (Partial Redundancy Elimination)</a></h3>
+          <p>Eliminate partially redundant expressions without speculation using critical-edge splitting and four data-flow passes.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/lazy_code_motion/main.rs">Rust source</a> · <a href="examples/lazy_code_motion/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/natural_loops/README.md">Dominators and natural loops</a></h3>
@@ -257,7 +469,27 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>10</dd>
             <dt>2006 Purple</dt><dd>9</dd>
           </dl>
-          <p><a href="examples/natural_loops/main.rs" aria-label="Rust source for Dominators and natural loops">Rust source</a></p>
+          <p><a href="examples/natural_loops/main.rs">Rust source</a> · <a href="examples/natural_loops/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/licm_iv/README.md">Loop-Invariant Code Motion and Strength Reduction</a></h3>
+          <p>Hoist safe loop invariants to the preheader, replace derived IV multiplications, and eliminate dead basic IVs.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>12–13</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/licm_iv/main.rs">Rust source</a> · <a href="examples/licm_iv/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/region_dataflow/README.md">Region-Based Data-Flow Analysis (T1/T2 Regions)</a></h3>
+          <p>Reduce flow graphs via T1/T2, compose affine <code>(gen, kill)</code> transfers bottom-up, and instantiate <code>IN[B]</code> top-down.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>13–14</dd>
+            <dt>1986 Red</dt><dd>10</dd>
+            <dt>2006 Purple</dt><dd>9</dd>
+          </dl>
+          <p><a href="examples/region_dataflow/main.rs">Rust source</a> · <a href="examples/region_dataflow/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/list_schedule/README.md">Basic-block list scheduling</a></h3>
@@ -267,7 +499,17 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>—</dd>
             <dt>2006 Purple</dt><dd>10</dd>
           </dl>
-          <p><a href="examples/list_schedule/main.rs" aria-label="Rust source for Basic-block list scheduling">Rust source</a></p>
+          <p><a href="examples/list_schedule/main.rs">Rust source</a> · <a href="examples/list_schedule/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/software_pipeline/README.md">Software Pipelining and Modular Variable Expansion</a></h3>
+          <p>Modulo-schedule inner loops under resource/recurrence MII bounds and rename rotating registers across iterations.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>10</dd>
+          </dl>
+          <p><a href="examples/software_pipeline/main.rs">Rust source</a> · <a href="examples/software_pipeline/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/loop_locality/README.md">Loop interchange and spatial locality</a></h3>
@@ -277,7 +519,27 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>—</dd>
             <dt>2006 Purple</dt><dd>11</dd>
           </dl>
-          <p><a href="examples/loop_locality/main.rs" aria-label="Rust source for Loop interchange and spatial locality">Rust source</a></p>
+          <p><a href="examples/loop_locality/main.rs">Rust source</a> · <a href="examples/loop_locality/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/dependence_test/README.md">Array Dependence Testing (GCD, Banerjee, Fourier-Motzkin)</a></h3>
+          <p>Prove independence or extract exact distance vectors across affine subscripts and coupled triangular loop bounds.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>11</dd>
+          </dl>
+          <p><a href="examples/dependence_test/main.rs">Rust source</a> · <a href="examples/dependence_test/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/affine_partition/README.md">Affine Partitioning, Unimodular Transforms, &amp; Appendix B</a></h3>
+          <p>Extract exact rational nullspace bases, find sync-free partitions, and skew wavefront nests for 2D tiling.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>11, app. B</dd>
+          </dl>
+          <p><a href="examples/affine_partition/main.rs">Rust source</a> · <a href="examples/affine_partition/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/points_to/README.md">Context-insensitive points-to analysis</a></h3>
@@ -287,19 +549,40 @@ cargo test --all-targets --locked</code></pre>
             <dt>1986 Red</dt><dd>10 (related alias analysis)</dd>
             <dt>2006 Purple</dt><dd>12</dd>
           </dl>
-          <p><a href="examples/points_to/main.rs" aria-label="Rust source for Context-insensitive points-to analysis">Rust source</a></p>
+          <p><a href="examples/points_to/main.rs">Rust source</a> · <a href="examples/points_to/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/context_points_to/README.md">Context-Sensitive (k-CFA / Call-String) Points-To</a></h3>
+          <p>Separate caller contexts using length-<code>k</code> call strings and discover virtual dispatch targets on the fly.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>14 <em>(related)</em></dd>
+            <dt>1986 Red</dt><dd>10 <em>(related)</em></dd>
+            <dt>2006 Purple</dt><dd>12</dd>
+          </dl>
+          <p><a href="examples/context_points_to/main.rs">Rust source</a> · <a href="examples/context_points_to/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/datalog_bdd/README.md">Semi-Naive Datalog Engine and ROBDD Relational Solver</a></h3>
+          <p>Evaluate incremental delta points-to rules and solve canonical ROBDD relational fixed points.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>12</dd>
+          </dl>
+          <p><a href="examples/datalog_bdd/main.rs">Rust source</a> · <a href="examples/datalog_bdd/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
     <section id="editions" aria-labelledby="editions-title">
       <h2 id="editions-title">Editions and scope</h2>
-      <p>These programs illustrate selected techniques using original code and sample inputs. Chapter numbers point to related reading. A dash means no direct reading is assigned.</p>
+      <p>These programs illustrate core techniques across the compiler pipeline using original Rust and Python code and deterministic sample inputs. Chapter numbers point to related reading. A dash means no direct reading is assigned.</p>
       <ul>
         <li><strong>1977 Green.</strong> <cite>Principles of Compiler Design</cite> by Alfred V. Aho and Jeffrey D. Ullman. <a href="https://openlibrary.org/works/OL9922572W/Principles_of_compiler_design?edition=principlesofcomp0000ahoa_x2t2">Open Library contents</a>.</li>
         <li><strong>1986 Red.</strong> <cite>Compilers: Principles, Techniques, and Tools</cite>, first edition, by Alfred V. Aho, Ravi Sethi, and Jeffrey D. Ullman. <a href="https://elmhurst.ecampus.com/compilers-principles-techniques-tools-aho/bk/9780201100884">1986 contents</a>.</li>
         <li><strong>2006 Purple.</strong> <cite>Compilers: Principles, Techniques, and Tools</cite>, second edition, by Alfred V. Aho, Monica S. Lam, Ravi Sethi, and Jeffrey D. Ullman. <a href="https://www.pearson.com/en-ca/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472/9780321486813">Pearson contents</a>.</li>
+        <li><strong>2014 New International Edition.</strong> Aligns chapter-for-chapter with 2006 Purple Chapters 1–11 and Appendices A–B, omitting Chapter 12 as a separate chapter.</li>
       </ul>
-      <p>The <a href="README.md#coverage-gaps">coverage gaps</a> include scanner and parser generators, production code generation, and several advanced optimizations and analyses.</p>
+      <p>See <a href="README.md#coverage-gaps">coverage gaps</a> for scope boundaries such as full Lex/Yacc file generators, global trace scheduling, and complete Appendix A Pascal/Java compilers.</p>
     </section>
   </main>
   <footer><a href="README.md">Repository README</a> · <a href="https://github.com/hevangel/compilers_principles_techniques_and_tools">Browse on GitHub</a></footer>

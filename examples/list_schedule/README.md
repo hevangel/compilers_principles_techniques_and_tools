@@ -1,10 +1,12 @@
 # Basic-block list scheduling
 
-Issue ready instructions subject to dependencies and per-cycle capacity. See the [Rust source](main.rs).
+Issue ready instructions subject to dependencies and per-cycle capacity. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example list_schedule
 cargo test --example list_schedule
+python3 examples/list_schedule/main.py
+python3 -m unittest examples/list_schedule/main.py
 ```
 
 ## What the example teaches

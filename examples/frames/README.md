@@ -1,10 +1,12 @@
 # Activation records and static links
 
-Distinguish the frame that called a procedure from its lexical parent. See the [Rust source](main.rs).
+Distinguish the frame that called a procedure from its lexical parent. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example frames
 cargo test --example frames
+python3 examples/frames/main.py
+python3 -m unittest examples/frames/main.py
 ```
 
 ## What the example teaches

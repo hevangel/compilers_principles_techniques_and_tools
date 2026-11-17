@@ -1,10 +1,12 @@
 # Epsilon-NFA to DFA
 
-Turn sets of possible NFA states into deterministic transition rows. See the [Rust source](main.rs).
+Turn sets of possible NFA states into deterministic transition rows. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example subset_dfa
 cargo test --example subset_dfa
+python3 examples/subset_dfa/main.py
+python3 -m unittest examples/subset_dfa/main.py
 ```
 
 ## What the example teaches

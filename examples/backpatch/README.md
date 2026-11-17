@@ -1,10 +1,12 @@
 # Backpatching and short-circuit jumps
 
-Fill forward jump targets after their destination instructions are emitted. See the [Rust source](main.rs).
+Fill forward jump targets after their destination instructions are emitted. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example backpatch
 cargo test --example backpatch
+python3 examples/backpatch/main.py
+python3 -m unittest examples/backpatch/main.py
 ```
 
 ## What the example teaches

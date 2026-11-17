@@ -1,10 +1,12 @@
 # Context-insensitive points-to analysis
 
-Propagate possible allocation sites through assignments and calls. See the [Rust source](main.rs).
+Propagate possible allocation sites through assignments and calls. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example points_to
 cargo test --example points_to
+python3 examples/points_to/main.py
+python3 -m unittest examples/points_to/main.py
 ```
 
 ## What the example teaches

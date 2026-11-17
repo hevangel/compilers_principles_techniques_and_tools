@@ -1,18 +1,22 @@
-# The Dragon Book in Rust
+# The Dragon Book in Rust and Python
 
-21 original Rust demonstrations of compiler concepts from the three books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside its source.
+49 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources.
 
 ## Run the examples
 
-Use Rust 1.85 or later with Cargo. The examples use only the Rust standard library. Run these commands from the repository root.
+Use Rust 1.85 or later with Cargo, or Python 3.11 or later. Every example uses only the Rust standard library and the Python standard library. Run these commands from the repository root.
 
 ```sh
 cargo run --example tiny_compiler
 cargo run --example tiny_compiler -- "let n = 6; emit n + 2 * 3; emit (n + 2) * 3;"
 cargo test --all-targets --locked
+
+python3 examples/tiny_compiler/main.py
+python3 examples/tiny_compiler/main.py "let n = 6; emit n + 2 * 3; emit (n + 2) * 3;"
+python3 -m unittest examples/*/main.py
 ```
 
-The first command prints bytecode and `Output: [27]`. The second prints `Output: [12, 24]`. Use `cargo test --example ll1` to run the tests for a single example. Open [index.html](index.html) for the standalone browser index.
+The first command prints bytecode and `Output: [27]`. The second prints `Output: [12, 24]`. Use `cargo test --example ll1` or `python3 -m unittest examples/ll1/main.py` to run the tests for a single example. Open [index.html](index.html) for the standalone browser index.
 
 ## Edition guide
 
@@ -21,6 +25,7 @@ The 1977 Green book is the predecessor to the two numbered editions of *Compiler
 - **1977 Green.** *Principles of Compiler Design* by Alfred V. Aho and Jeffrey D. Ullman. [Open Library contents](https://openlibrary.org/works/OL9922572W/Principles_of_compiler_design?edition=principlesofcomp0000ahoa_x2t2).
 - **1986 Red.** *Compilers: Principles, Techniques, and Tools*, first edition, by Alfred V. Aho, Ravi Sethi, and Jeffrey D. Ullman. [1986 contents](https://elmhurst.ecampus.com/compilers-principles-techniques-tools-aho/bk/9780201100884).
 - **2006 Purple.** *Compilers: Principles, Techniques, and Tools*, second edition, by Alfred V. Aho, Monica S. Lam, Ravi Sethi, and Jeffrey D. Ullman. [Pearson contents](https://www.pearson.com/en-ca/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472/9780321486813).
+- **2014 New International Edition.** Aligns chapter-for-chapter with 2006 Purple Chapters 1–11 and Appendices A–B, while omitting Chapter 12 (*Interprocedural Analysis*) as a separate chapter.
 
 The numbers below refer to chapters unless marked as an appendix. A reference points to relevant reading within a chapter. An em dash indicates that this guide assigns no direct reading in that volume.
 
@@ -34,67 +39,95 @@ A compiler translates a program from one language into another. Follow one tiny 
 
 ### Scanning and parsing
 
-Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with token boundaries and finite automata, compares top-down and bottom-up parsing, and shows how to resume after a syntax error.
+Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with regular expressions and finite automata, covers grammar transformations and top-down/bottom-up parsing, resolves ambiguities, and shows how to resume after a syntax error.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Tokens and longest match](examples/lexer/README.md) | 3 | 2–3 | 2–3 |
+| [Regex to Thompson NFA and Direct DFA](examples/regex_automata/README.md) | 3 | 3 | 3 |
 | [Epsilon-NFA to DFA](examples/subset_dfa/README.md) | 3 | 3 | 3 |
+| [DFA State Minimization](examples/dfa_minimize/README.md) | 3 | 3 | 3 |
+| [Grammar Rewriting: Left Recursion Elimination and Left Factoring](examples/grammar_rewrite/README.md) | 4–5 | 4 | 4 |
 | [FIRST, FOLLOW, and LL(1)](examples/ll1/README.md) | 4–5 | 4 | 4 |
 | [LR(0) items and SLR parsing](examples/slr/README.md) | 5–6 | 4 | 4 |
+| [Canonical LR(1), LALR(1), and Table Compaction](examples/lalr/README.md) | 5–6 | 4 | 4 |
+| [Ambiguous Precedence and Associativity Resolution](examples/precedence_parse/README.md) | 5–6 | 4 (§4.6, §4.8) | 4 |
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
 
 ### Translation and semantic analysis
 
-A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names and checks types. Translation uses that information to produce a lower-level representation, for example by turning array indices into byte offsets and Boolean expressions into jumps.
+A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names, infers polymorphic types, checks coercions and overloadings, and lays out records and arrays. Translation uses that information to build expression DAGs, SSA graphs, three-address IR, switch dispatch, and short-circuit jumps.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Inherited and synthesized attributes](examples/attributes/README.md) | 7 (translation schemes) | 5 | 5 |
+| [Attribute Dependency Graph and Topological Evaluator](examples/sdd_eval/README.md) | 7 | 5 | 5 |
+| [Expression DAGs and Value-Number Hashing](examples/expr_dag/README.md) | 7, 12 | 5, 9 | 5–6, 8 |
+| [Static Single-Assignment (SSA) Construction and Phi Placement](examples/ssa/README.md) | — | — | 6, 9 |
 | [Scoped names and type checks](examples/scope_types/README.md) | 2, 9, 11 | 6–7 | 2, 6 |
-| [Type unification and the occurs check](examples/unification/README.md) | — | 6 | — |
+| [Type unification and the occurs check](examples/unification/README.md) | — | 6 | 6 |
+| [Hindley-Milner Let-Polymorphic Type Inference and Type Equivalence](examples/poly_infer/README.md) | — | 6 | 6 |
+| [Type Coercions and Two-Pass Overload Resolution](examples/overload_coerce/README.md) | — | 6 | 6 |
 | [Row-major array addresses](examples/array_layout/README.md) | 2, 8 | 8–9 | 6, 8 |
 | [Backpatching and short-circuit jumps](examples/backpatch/README.md) | 7 (Boolean translation) | 8 | 6 |
+| [Switch Lowering and Break/Continue Backpatching](examples/switch_lower/README.md) | 7 | 8 | 6 |
+| [Record Field Layout and Quadruple / Triple / Indirect-Triple IR](examples/record_ir/README.md) | 2, 8 | 8 | 6 |
 
 ### Runtime and code generation
 
-A compiled program still needs ways to store locals, call procedures, manage heap objects, and evaluate expressions on its target machine. These examples connect the runtime representation of data with the instructions a compiler emits to use it.
+A compiled program still needs ways to manage lexical nesting, heap garbage collection, register allocation, instruction selection, and peephole cleanup on its target machine. These examples connect the runtime representation of data with the machine instructions emitted to use it.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Activation records and static links](examples/frames/README.md) | 2, 10 | 7 | 7 |
+| [Lexical Display vs Static Links and Stack VLAs](examples/display_vla/README.md) | 2, 10 | 7 | 7 |
 | [Tracing and mark-sweep collection](examples/mark_sweep/README.md) | — | 7 (storage reclamation) | 7 |
+| [Cheney Semispace Copying and Sliding Mark-Compact GC](examples/copying_gc/README.md) | — | 7 (reclamation) | 7 |
+| [Generational, Tri-Color Incremental, and Reference-Counting GC](examples/generational_gc/README.md) | — | 7 | 7 |
 | [Register needs for expression trees](examples/register_codegen/README.md) | 15 | 9 | 8 |
+| [Register/Address Descriptors, Next-Use, and `getReg` Code Generator](examples/reg_desc_codegen/README.md) | 15 | 9 | 8 |
+| [Global Register Allocation by Graph Coloring](examples/graph_color_regalloc/README.md) | 15 | 9 | 8 |
+| [Dynamic-Programming Tree Tiling and Peephole Optimization](examples/dp_tiling/README.md) | 15 | 9 | 8 |
 
 ### Optimization and program analysis
 
-An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, such as which values might be read or which assignments can reach a block. Start inside a basic block, then follow information through branches, loops, and procedure calls.
+An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, from basic-block value numbering and global bitvector/lattice data-flow frameworks to software pipelining, polyhedral loop transformations, and Datalog/ROBDD interprocedural pointer analysis.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Local value numbering](examples/value_numbering/README.md) | 12 | 9–10 | 8–9 |
 | [Backward liveness analysis](examples/liveness/README.md) | 12, 14 | 10 | 9 |
 | [Forward reaching definitions](examples/reaching_defs/README.md) | 12, 14 | 10 | 9 |
+| [Available Expressions, Global CSE, and Copy Propagation](examples/available_exprs/README.md) | 12, 14 | 10 | 9 |
+| [Semilattice Constant Propagation (MFP vs MOP Nondistributivity)](examples/const_prop/README.md) | — | — | 9 |
+| [Lazy Code Motion (Partial Redundancy Elimination)](examples/lazy_code_motion/README.md) | — | — | 9 |
 | [Dominators and natural loops](examples/natural_loops/README.md) | 13 | 10 | 9 |
+| [Loop-Invariant Code Motion and Induction-Variable Strength Reduction](examples/licm_iv/README.md) | 12–13 | 10 | 9 |
+| [Region-Based Data-Flow Analysis (T1/T2 Reducible Regions)](examples/region_dataflow/README.md) | 13–14 | 10 | 9 |
 | [Basic-block list scheduling](examples/list_schedule/README.md) | — | — | 10 |
+| [Software Pipelining and Modular Variable Expansion](examples/software_pipeline/README.md) | — | — | 10 |
 | [Loop interchange and spatial locality](examples/loop_locality/README.md) | — | — | 11 |
+| [Array Dependence Testing (GCD, Banerjee, and Fourier-Motzkin)](examples/dependence_test/README.md) | — | — | 11 |
+| [Affine Partitioning, Unimodular Transforms, and Appendix B Linear Algebra](examples/affine_partition/README.md) | — | — | 11, app. B |
 | [Context-insensitive points-to analysis](examples/points_to/README.md) | 14 (related interprocedural flow) | 10 (related alias analysis) | 12 |
+| [Context-Sensitive (k-CFA / Call-String) Points-To Analysis](examples/context_points_to/README.md) | 14 *(related)* | 10 *(related)* | 12 |
+| [Semi-Naive Datalog Engine and ROBDD Relational Solver](examples/datalog_bdd/README.md) | — | — | 12 |
 
 ## Coverage gaps
 
-This is a concept companion with independently written programs, inputs, and explanations. Coverage is selective at the chapter level and excludes textbook listings, figures, and exercise solutions.
+This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendix B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.
 
-- **Across the books.** Scanner generators, DFA minimization, canonical LR(1), LALR, parser generators, general type conversions and overload resolution, calling conventions, and native code generation have no dedicated demos. The optimization examples cover selected analyses and local transformations. They leave out constant propagation, partial redundancy elimination, and loop-invariant code motion.
-- **1977 Green.** The language survey in chapter 2 is represented by a small language, scoped names, and array layout. The loop example finds natural loops. It leaves out induction-variable elimination. The historical compiler survey and Pascal project in appendices A and B are outside the collection.
-- **1986 Red.** Chapter 6 has a type checker and a unification demo. Full polymorphic inference is outside the collection. Chapters 11 and 12 on compiler development and historical implementations have no dedicated demos. The tiny compiler is a companion to the project theme in appendix A.
-- **2006 Purple.** The runtime demo covers basic tracing and sweep. Generational, incremental, and short-pause collectors are outside its scope. Chapters 10–12 have introductory examples. Global scheduling, software pipelining, general affine dependence analysis, context-sensitive pointer analysis, and Datalog/BDD implementations have no dedicated demos. The tiny compiler is a companion to the front-end theme in appendix A. Appendix B’s linear algebra has no dedicated demo.
+- **Full-language generators and appendix projects.** Standalone `.l`/`.y` file compilers (full Lex/Flex and Yacc/Bison DSL generators) and complete multi-thousand-line Pascal or Java front-end projects (`Appendix A`) remain outside this collection; `tiny_compiler` serves as the compact front-end and VM companion.
+- **Global trace/superblock scheduling.** Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (`§10.4`) out of scope.
+- **Historical survey chapters.** Compiler history and architectural surveys (`1977 Green` Ch. 1–2 language survey and Appendix B; `1986 Red` Ch. 11–12 historical compiler notes) have no standalone demos.
 
 ## Checks
 
-Every example has a deterministic sample in `main` and focused unit tests beside the implementation. Tests check accepting and rejecting parser inputs, short-circuit traces, analysis fixed points, and preservation of results across code transformations.
+Every example provides matching deterministic Rust and Python demonstrations plus unit tests checking accepting and rejecting parser inputs, short-circuit traces, analysis fixed points, and semantic preservation across code transformations.
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --all-targets --locked
+python3 -m unittest examples/*/main.py
 ```

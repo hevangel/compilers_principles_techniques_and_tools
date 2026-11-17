@@ -1,10 +1,12 @@
 # Inherited and synthesized attributes
 
-Pass an origin down a tree and synthesize widths on the way back up. See the [Rust source](main.rs).
+Pass an origin down a tree and synthesize widths on the way back up. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example attributes
 cargo test --example attributes
+python3 examples/attributes/main.py
+python3 -m unittest examples/attributes/main.py
 ```
 
 ## What the example teaches
@@ -44,4 +46,4 @@ Three strips of widths 2, 5, and 4 starting at 10 have origins 10, 12, and 17. T
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The tree and its evaluation order are written directly in Rust.
+The tree and its evaluation order are written directly in the source.

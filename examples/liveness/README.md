@@ -1,10 +1,12 @@
 # Backward liveness analysis
 
-Find which values may still be read along a future path. See the [Rust source](main.rs).
+Find which values may still be read along a future path. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example liveness
 cargo test --example liveness
+python3 examples/liveness/main.py
+python3 -m unittest examples/liveness/main.py
 ```
 
 ## What the example teaches

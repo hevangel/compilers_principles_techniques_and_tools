@@ -1,10 +1,12 @@
 # Dominators and natural loops
 
-Find loop headers using dominance and collect each natural loop’s blocks. See the [Rust source](main.rs).
+Find loop headers using dominance and collect each natural loop’s blocks. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example natural_loops
 cargo test --example natural_loops
+python3 examples/natural_loops/main.py
+python3 -m unittest examples/natural_loops/main.py
 ```
 
 ## What the example teaches

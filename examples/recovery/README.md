@@ -1,10 +1,12 @@
 # Panic-mode recovery
 
-Report a malformed statement and resume at the next semicolon. See the [Rust source](main.rs).
+Report a malformed statement and resume at the next semicolon. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example recovery
 cargo test --example recovery
+python3 examples/recovery/main.py
+python3 -m unittest examples/recovery/main.py
 ```
 
 ## What the example teaches

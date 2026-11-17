@@ -1,10 +1,12 @@
 # Tokens and longest match
 
-Split source text into token kinds, lexemes, and byte offsets. See the [Rust source](main.rs).
+Split source text into token kinds, lexemes, and byte offsets. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example lexer
 cargo test --example lexer
+python3 examples/lexer/main.py
+python3 -m unittest examples/lexer/main.py
 ```
 
 ## What the example teaches

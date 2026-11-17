@@ -1,10 +1,12 @@
 # LR(0) items and SLR parsing
 
-Generate item sets and shift/reduce actions for a left-recursive list. See the [Rust source](main.rs).
+Generate item sets and shift/reduce actions for a left-recursive list. See the [Rust source](main.rs) and [Python source](main.py).
 
 ```sh
 cargo run --example slr
 cargo test --example slr
+python3 examples/slr/main.py
+python3 -m unittest examples/slr/main.py
 ```
 
 ## What the example teaches
