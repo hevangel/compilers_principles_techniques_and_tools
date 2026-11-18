@@ -228,6 +228,7 @@
         <li><a href="#runtime">Runtime and code generation</a></li>
         <li><a href="#optimization">Optimization and program analysis</a></li>
         <li><a href="#editions">Editions and scope</a></li>
+        <li><a href="#coverage-gaps">Coverage gaps</a></li>
       </ul>
     </nav>
   </header>
@@ -879,7 +880,16 @@ python3 -m unittest examples/*/main.py</code></pre>
         <li><strong>2006 Purple.</strong> <cite>Compilers: Principles, Techniques, and Tools</cite>, second edition, by Alfred V. Aho, Monica S. Lam, Ravi Sethi, and Jeffrey D. Ullman. <a href="https://www.pearson.com/en-ca/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472/9780321486813">Pearson contents</a>.</li>
         <li><strong>2014 New International Edition.</strong> Aligns chapter-for-chapter with 2006 Purple Chapters 1–11 and Appendices A–B, omitting Chapter 12 as a separate chapter.</li>
       </ul>
-      <p>See <a href="README.md#coverage-gaps">coverage gaps</a> for scope boundaries such as full Lex/Yacc file generators, global trace scheduling, and complete Appendix A Pascal/Java compilers.</p>
+      <p>See <a href="#coverage-gaps">coverage gaps</a> below (or in the <a href="README.md#coverage-gaps">repository README</a>) for scope boundaries across editions.</p>
+    </section>
+    <section id="coverage-gaps" aria-labelledby="coverage-gaps-title">
+      <h2 id="coverage-gaps-title">Coverage gaps</h2>
+      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendix B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.</p>
+      <ul>
+        <li><strong>Full-language generators and appendix projects.</strong> Standalone <code>.l</code>/<code>.y</code> file compilers (full Lex/Flex and Yacc/Bison DSL generators) and complete multi-thousand-line Pascal or Java front-end projects (<code>Appendix A</code>) remain outside this collection; <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a> serves as the compact front-end and VM companion.</li>
+        <li><strong>Global trace/superblock scheduling.</strong> Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (<code>§10.4</code>) out of scope.</li>
+        <li><strong>Historical survey chapters.</strong> Compiler history and architectural surveys (<code>1977 Green</code> Ch. 1–2 language survey and Appendix B; <code>1986 Red</code> Ch. 11–12 historical compiler notes) have no standalone demos.</li>
+      </ul>
     </section>
     </div>
 
@@ -914,7 +924,7 @@ python3 -m unittest examples/*/main.py</code></pre>
   (() => {
     "use strict";
 
-    const SECTION_IDS = ["start", "front-end", "translation", "runtime", "optimization", "editions"];
+    const SECTION_IDS = ["start", "front-end", "translation", "runtime", "optimization", "editions", "coverage-gaps"];
     const catalogView = document.getElementById("catalog-view");
     const viewerView = document.getElementById("viewer");
     const viewerPathEl = document.getElementById("viewer-path");
@@ -1759,9 +1769,12 @@ python3 -m unittest examples/*/main.py</code></pre>
           location.hash = "#/";
         } else if (href.startsWith("#/")) {
           return; // browser updates location.hash -> hashchange
-        } else if (currentDocPath && !SECTION_IDS.includes(href.slice(1))) {
-          e.preventDefault();
-          scrollToFragment(href.slice(1));
+        } else if (currentDocPath) {
+          const frag = href.slice(1);
+          if (viewerContentEl.querySelector(`[id="${CSS.escape(frag)}"]`) || !SECTION_IDS.includes(frag)) {
+            e.preventDefault();
+            scrollToFragment(frag);
+          }
         }
         return;
       }
