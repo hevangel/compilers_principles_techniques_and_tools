@@ -2,7 +2,7 @@
 
 Build a lossless immutable **Green Tree** (preserving every byte of whitespace and comments as trivia), wrap it in on-demand **Red Tree** cursors for shifted absolute byte offsets, and incrementally reparse edited buffers while reusing unaffected statement subtrees. See the [Rust source](main.rs) and [Python source](main.py).
 
-> **Edition note:** Concrete syntax trees (Green/Red trees) and incremental IDE reparsing (e.g., Roslyn, `rowan`/rust-analyzer, Tree-sitter) are modern interactive-tooling techniques placed under **Advanced parsing techniques** rather than classical batch Dragon Book chapters.
+> **Edition note:** Concrete syntax trees (Green/Red trees) and incremental IDE reparsing (e.g., Roslyn, `rowan`/rust-analyzer, Tree-sitter) are modern interactive-tooling techniques placed under **Advanced parsing techniques** rather than classical batch Dragon Book chapters. See [CST vs. AST (§2.2.3, §2.5.1, §2.6.1)](../cst_vs_ast/README.md) for classical parse trees vs. ASTs and [Lossless Syntax Trees](../lossless_syntax_tree/README.md) for `NodeCache` interning, typed AST views, and format-preserving functional edits.
 
 ```sh
 cargo run --example incremental_cst

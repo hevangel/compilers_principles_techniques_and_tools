@@ -24,8 +24,9 @@ An **Abstract Syntax Tree (AST)** keeps only the meaningful operators, operands,
 | Representation | Focus | What gets kept vs. dropped | Where taught in this repo |
 | --- | --- | --- | --- |
 | **Tokens** (`Token`) | Lexical stream | Keeps kinds, lexemes, byte/line spans; drops whitespace & comments | [`lexer`](../lexer/README.md), [`lex_generator`](../lex_generator/README.md) |
-| **Parse Tree / CST** (`CstNode`) | Exact grammar derivation | Keeps every nonterminal chain (`Expr -> Term -> Unary -> Factor`) and `(`, `)`, `;` | [`ast_construction`](README.md), [`ll1`](../ll1/README.md) |
-| **AST** (`AstExpr`, `AstStmt`) | Clean semantic structure | Drops punctuation & unit chains; encodes precedence/grouping in tree shape + `Span` | [`ast_construction`](README.md) (this lesson) |
+| **Parse Tree / CST** (`CstNode`) | Exact grammar derivation | Keeps every nonterminal chain (`Expr -> Term -> Unary -> Factor`) and `(`, `)`, `;` *(drops trivia per §2.6.1)* | [`cst_vs_ast`](../cst_vs_ast/README.md), [`ast_construction`](README.md), [`ll1`](../ll1/README.md) |
+| **AST** (`AstExpr`, `AstStmt`) | Clean semantic structure | Drops punctuation & unit chains; encodes precedence/grouping in tree shape + `Span` | [`cst_vs_ast`](../cst_vs_ast/README.md), [`ast_construction`](README.md) (this lesson) |
+| **Lossless Syntax Tree** | Modern IDE / formatter CST | Preserves whitespace, comments, exact token spelling & error spans byte-for-byte | [`lossless_syntax_tree`](../lossless_syntax_tree/README.md), [`incremental_cst`](../incremental_cst/README.md) |
 | **Symbol Table & Attributes** | Names & types | Maps declared identifiers to scopes, byte widths, and types | [`scope_types`](../scope_types/README.md), [`attributes`](../attributes/README.md) |
 | **TAC IR & SSA** (`TacInst`) | Flat virtual-register ops | Flattens nested AST trees into `t0 := 2 + 3` instructions and `phi` nodes | [`record_ir`](../record_ir/README.md), [`ssa`](../ssa/README.md) |
 | **CFG** | Basic-block control flow | Groups IR into blocks and branch edges for data-flow & scheduling | [`natural_loops`](../natural_loops/README.md), [`trace_schedule`](../trace_schedule/README.md) |

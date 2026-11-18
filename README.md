@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-72 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, follow each core intermediate representation (**tokens → parse tree vs. AST → symbol tables → TAC/SSA → CFG**), or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+74 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, follow each core intermediate representation (**tokens → parse tree / CST vs. AST → symbol tables → TAC/SSA → CFG**), or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -39,7 +39,7 @@ A compiler translates a program from one language into another. Follow one tiny 
 
 ### Scanning and parsing (Ch. 3–4)
 
-Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit a grammar via derivations, top-down rewriting/`recursive_descent`/`LL(1)`, bottom-up `SLR`/`LALR(1)`/classical operator-precedence, `.l`/`.y` AST pipelines, and table-integrated error recovery.
+Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit a grammar via derivations, top-down rewriting/`recursive_descent`/`LL(1)`, bottom-up `SLR`/`LALR(1)`/classical operator-precedence, classical CST-to-AST/DAG transformations, `.l`/`.y` AST pipelines, and table-integrated error recovery.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
@@ -61,6 +61,7 @@ Scanning groups characters into tokens, such as names and operators, across inpu
 | [Classical Operator-Precedence Parsing (1977 §5.3 / 1986 §4.6)](examples/operator_precedence_parser/README.md) | 5 (§5.3) | 4 (§4.6) | — *(removed; superseded by §4.8 LR precedence)* |
 | [Ambiguous Precedence and Associativity Resolution](examples/precedence_parse/README.md) | 5–6 | 4 (§4.6, §4.8) | 4 |
 | [Yacc-Style Parser Generator (`.y` DSL Compiler)](examples/yacc_generator/README.md) | 5–6, 8 | 4 (§4.8–4.9) | 4 (§4.9) |
+| [Concrete Parse Trees (CST) vs. AST & §6.1 DAG Variants (§2.2.3, §2.5.1, §5.3.1)](examples/cst_vs_ast/README.md) | 4–5, 7 | 2, 4, 5, 8 | 2, 5–6 (§2.2.3, §2.5.1, §2.6.1, §2.8.2, §5.3.1, §6.1) |
 | [Abstract Syntax Tree (AST) Construction (§4.9 → Ch. 5–6)](examples/ast_construction/README.md) | 5–7 | 4–5 (§4.9, §5.2) | 4–6 (§4.9, §5.3, §6.2) |
 | [Integrated `.l` + `.y` Front-End Pipeline Constructing an AST (Ch. 3–5)](examples/lex_yacc_ast/README.md) | 3, 5–7 | 3–5 | 3–5 |
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
@@ -68,13 +69,14 @@ Scanning groups characters into tokens, such as names and operators, across inpu
 
 ### Advanced parsing techniques (modern extensions; cf. Ch. 3–5)
 
-These five examples cover modern post-Dragon-Book front-end parsing and lexing techniques (labeled explicitly as modern extensions rather than historical Green/Red/Purple textbook chapters).
+These six examples cover modern post-Dragon-Book front-end parsing and lexing techniques (labeled explicitly as modern extensions rather than historical Green/Red/Purple textbook chapters).
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Pratt Parsing and Precedence Climbing *(Modern Extension)*](examples/pratt_parsing/README.md) | — *(modern extension; cf. §5.3)* | — *(modern extension; cf. §4.6)* | — *(modern extension; cf. §4.8)* |
 | [Parsing Expression Grammars (PEGs) and Packrat Memoization *(Modern Extension)*](examples/peg_packrat/README.md) | — *(modern extension)* | — *(modern extension)* | — *(modern extension)* |
 | [Tomita GLR Parsing, Graph-Structured Stacks, and Parse Forests *(Modern Extension)*](examples/glr_parsing/README.md) | — *(modern extension; cf. Ch. 5–6)* | — *(modern extension; cf. §4.7)* | — *(modern extension; cf. §4.7–4.8)* |
+| [Lossless Immutable Syntax Trees *(Modern Extension)*](examples/lossless_syntax_tree/README.md) | — *(modern extension; cf. Ch. 5)* | — *(modern extension; cf. Ch. 4–5)* | — *(modern extension; cf. §2.2.3, §2.5.1, §2.6.1)* |
 | [Concrete Syntax Trees and Incremental Parsing *(Modern Extension)*](examples/incremental_cst/README.md) | — *(modern extension; cf. Ch. 5)* | — *(modern extension; cf. Ch. 4–5)* | — *(modern extension; cf. Ch. 2, 4–5)* |
 | [Unicode-Aware Source Lexing *(Modern Extension)*](examples/unicode_lexing/README.md) | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* |
 

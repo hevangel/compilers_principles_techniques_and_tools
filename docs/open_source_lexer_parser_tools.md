@@ -157,6 +157,44 @@ Keep these two techniques cleanly distinct:
 
 ---
 
+## 5. Syntax trees: what the textbook covers vs. lossless trees
+
+| Representation | Covered? | Where in the 2006 Purple Dragon Book | Repo lesson |
+| --- | --- | --- | --- |
+| **Parse tree / CST** | Yes | **§2.2.3** — Parse Trees | [`cst_vs_ast`](../examples/cst_vs_ast/README.md) |
+| **CST versus AST** | Yes | **§2.5.1** — Abstract and Concrete Syntax | [`cst_vs_ast`](../examples/cst_vs_ast/README.md) |
+| **AST construction** | Yes | **§2.8.2** and **§5.3.1** | [`cst_vs_ast`](../examples/cst_vs_ast/README.md), [`ast_construction`](../examples/ast_construction/README.md) |
+| **Syntax-tree variants** | Yes | **§6.1** | [`cst_vs_ast`](../examples/cst_vs_ast/README.md), [`expr_dag`](../examples/expr_dag/README.md) |
+| **Lossless syntax tree** | Not as a dedicated technique | Modern extension | [`lossless_syntax_tree`](../examples/lossless_syntax_tree/README.md), [`incremental_cst`](../examples/incremental_cst/README.md) |
+
+The Dragon Book explicitly identifies a parse tree as a **concrete syntax tree (CST)**. What separates a **lossless syntax tree** is trivia preservation. Consider:
+
+```text
+let x  =  42;  // important comment
+```
+
+```text
+AST:                         Lossless syntax tree:
+Let                          LetDeclaration
+├── Name("x")                ├── Keyword("let")
+└── Number(42)               ├── Whitespace(" ")
+                             ├── Identifier("x")
+                             ├── Whitespace("  ")
+                             ├── Equals("=")
+                             ├── Whitespace("  ")
+                             ├── Number("42")
+                             ├── Semicolon(";")
+                             ├── Whitespace("  ")
+                             └── Comment("// important comment")
+```
+
+A classical CST represents the grammar's derivations (`Expr -> Term -> Factor`), **not** verbatim source bytes, because Dragon Book **§2.6.1** discards whitespace and comments during lexical analysis. That simplification works well for batch compilation; modern developer tooling instead studies:
+
+- **Rowan** ([github.com/rust-analyzer/rowan](https://github.com/rust-analyzer/rowan)): Specializes in **lossless, immutable green/red syntax trees**, structural `NodeCache` interning, typed AST views over trivia-preserving nodes, and format-preserving functional edits ([`lossless_syntax_tree`](../examples/lossless_syntax_tree/README.md)).
+- **Tree-sitter** ([tree-sitter.github.io/tree-sitter](https://tree-sitter.github.io/tree-sitter/)): Emphasizes **incremental GLR parsing** over concrete syntax trees across live edits ([`incremental_cst`](../examples/incremental_cst/README.md)).
+
+---
+
 ## Continue reading
 
 - [A Reference Guide to Programming-Language Design](language_design_guide.md)
