@@ -51,4 +51,4 @@ The Dragon Book shows how to compile a language cleanly once those choices are d
 
 - [Open-Source Lexer and Parser Tools & Real Compiler Architectures](open_source_lexer_parser_tools.md)
 - [Macro Systems: Lexer, Token-Preprocessor, and Syntax-Aware Architectures](macro_systems.md)
-- Back to [Repository README](../README.md#scanning-and-parsing)
+- Back to [Repository README](../README.md#edition-guide)

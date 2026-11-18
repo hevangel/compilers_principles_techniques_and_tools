@@ -1,6 +1,6 @@
 # Open-Source Lexer and Parser Tools, Real Compiler Architectures, and Parsing Algorithms
 
-This extended reference connects the Dragon Book's scanning and parsing fundamentals in [`examples/`](../README.md#scanning-and-parsing) to production open-source lexer/parser generators, real-world compiler front ends, and the full spectrum of parsing algorithms.
+This extended reference connects the Dragon Book's scanning and parsing fundamentals in [`examples/`](../README.md#edition-guide) to production open-source lexer/parser generators, real-world compiler front ends, and the full spectrum of parsing algorithms.
 
 ---
 
@@ -161,4 +161,4 @@ Keep these two techniques cleanly distinct:
 
 - [A Reference Guide to Programming-Language Design](language_design_guide.md)
 - [Macro Systems: Lexer, Token-Preprocessor, and Syntax-Aware Architectures](macro_systems.md)
-- Back to [Repository README](../README.md#scanning-and-parsing)
+- Back to [Repository README](../README.md#edition-guide)

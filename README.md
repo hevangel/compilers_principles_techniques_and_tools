@@ -29,7 +29,7 @@ The 1977 Green book is the predecessor to the two numbered editions of *Compiler
 
 The numbers below refer to chapters unless marked as an appendix. A reference points to relevant reading within a chapter. An em dash indicates that this guide assigns no direct reading in that volume.
 
-### Start here
+### Start here (Ch. 1–2, App. A)
 
 A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.
 
@@ -37,7 +37,7 @@ A compiler translates a program from one language into another. Follow one tiny 
 | --- | --- | --- | --- |
 | [A tiny compiler and stack machine](examples/tiny_compiler/README.md) | 1, 2, 5, 7 | 1–2; app. A (project theme) | 1–2; app. A (front-end theme) |
 
-### Scanning and parsing
+### Scanning and parsing (Ch. 3–4)
 
 Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit a grammar via derivations, top-down rewriting/`recursive_descent`/`LL(1)`, bottom-up `SLR`/`LALR(1)`/classical operator-precedence, `.l`/`.y` AST pipelines, and table-integrated error recovery.
 
@@ -66,15 +66,7 @@ Scanning groups characters into tokens, such as names and operators, across inpu
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
 | [LL(1) Synchronization Sets and LR Error Recovery (Ch. 4)](examples/parser_error_recovery/README.md) | 11 | 4 (§4.4, §4.7–4.8) | 4 (§4.4.5, §4.7–4.8) |
 
-#### Extended resources: tools, real compilers, language design & macros
-
-Companion reference guides under [`docs/`](docs/open_source_lexer_parser_tools.md) connect these examples to production tooling, language-design literature, and macro architectures:
-
-- **[Open-Source Lexer & Parser Tools, Real Compilers & Algorithm Comparison](docs/open_source_lexer_parser_tools.md)** — Documents **Flex**, **re2c / re2rust**, **Logos**, **JFlex**, and **Ragel** (lexer generators); **GNU Bison**, **LALRPOP**, **ANTLR 4**, **Tree-sitter**, and **Java CUP** (parser generators); real compiler front ends (**GCC**, **Clang**, **rustc**, **Go**, **V8**, **CPython**, **Verible**, **Xezim**, **Slopman-e**) with primary links; the **implementation vs. parsing-strategy** distinction (without assigning unproved `LL(n)` classes); why **`LALR(1)` is not universally best**; concrete shift/reduce, reduce/reduce, precedence, associativity, and dangling-else parse trees; and classical Floyd operator-precedence vs. LR precedence declarations.
-- **[A Reference Guide to Programming-Language Design](docs/language_design_guide.md)** — Separates *compilation* (Dragon Book) from *language design* (evaluation order, scoping, types, memory management, modules, concurrency, macro semantics, diagnostics), with a suggested 7-book reading sequence spanning *Programming Language Pragmatics*, *Crafting Interpreters*, *Types and Programming Languages*, *PFPL*, and *The Design and Evolution of C++*.
-- **[Macro Systems Architecture](docs/macro_systems.md)** — Distinguishes **lexer-specification macros** (`{digit}` before automata in [`lex_generator`](examples/lex_generator/README.md)), **token-based preprocessors** (C `cpp`, SystemVerilog `` `define `` / `` `ifdef ``), and **syntax-aware macros** (Rust `macro_rules!`, Lisp `defmacro`, Scheme hygienic `syntax-rules`), explaining why macros are not regex substitutions and outlining a future `macro_systems` module.
-
-### Advanced parsing techniques (modern extensions)
+### Advanced parsing techniques (modern extensions; cf. Ch. 3–5)
 
 These five examples cover modern post-Dragon-Book front-end parsing and lexing techniques (labeled explicitly as modern extensions rather than historical Green/Red/Purple textbook chapters).
 
@@ -86,7 +78,15 @@ These five examples cover modern post-Dragon-Book front-end parsing and lexing t
 | [Concrete Syntax Trees and Incremental Parsing *(Modern Extension)*](examples/incremental_cst/README.md) | — *(modern extension; cf. Ch. 5)* | — *(modern extension; cf. Ch. 4–5)* | — *(modern extension; cf. Ch. 2, 4–5)* |
 | [Unicode-Aware Source Lexing *(Modern Extension)*](examples/unicode_lexing/README.md) | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* |
 
-### Translation and semantic analysis
+### Extended resources (cf. Ch. 3–5)
+
+Companion reference guides connect the scanning and parsing curriculum to production tooling, language-design literature, and macro architectures:
+
+- **[Open-Source Lexer & Parser Tools, Real Compilers & Algorithm Comparison](docs/open_source_lexer_parser_tools.md)** — Documents **Flex**, **re2c / re2rust**, **Logos**, **JFlex**, and **Ragel** (lexer generators); **GNU Bison**, **LALRPOP**, **ANTLR 4**, **Tree-sitter**, and **Java CUP** (parser generators); real compiler front ends (**GCC**, **Clang**, **rustc**, **Go**, **V8**, **CPython**, **Verible**, **Xezim**, **Slopman-e**) with primary links; the **implementation vs. parsing-strategy** distinction (without assigning unproved `LL(n)` classes); why **`LALR(1)` is not universally best**; concrete shift/reduce, reduce/reduce, precedence, associativity, and dangling-else parse trees; and classical Floyd operator-precedence vs. LR precedence declarations.
+- **[A Reference Guide to Programming-Language Design](docs/language_design_guide.md)** — Separates *compilation* (Dragon Book) from *language design* (evaluation order, scoping, types, memory management, modules, concurrency, macro semantics, diagnostics), with a suggested 7-book reading sequence spanning *Programming Language Pragmatics*, *Crafting Interpreters*, *Types and Programming Languages*, *PFPL*, and *The Design and Evolution of C++*.
+- **[Macro Systems Architecture](docs/macro_systems.md)** — Distinguishes **lexer-specification macros** (`{digit}` before automata in [`lex_generator`](examples/lex_generator/README.md)), **token-based preprocessors** (C `cpp`, SystemVerilog `` `define `` / `` `ifdef ``), and **syntax-aware macros** (Rust `macro_rules!`, Lisp `defmacro`, Scheme hygienic `syntax-rules`), explaining why macros are not regex substitutions and outlining a future `macro_systems` module.
+
+### Translation and semantic analysis (Ch. 5–6, App. A)
 
 Each compiler stage transforms one intermediate representation into the next: **tokens** ([`lexer`](examples/lexer/README.md)) → **parse tree vs. AST** ([`ast_construction`](examples/ast_construction/README.md)) → **symbol tables & attributes** ([`scope_types`](examples/scope_types/README.md), [`attributes`](examples/attributes/README.md)) → **expression DAGs, three-address IR & SSA** ([`record_ir`](examples/record_ir/README.md), [`ssa`](examples/ssa/README.md)) → **CFGs** ([`natural_loops`](examples/natural_loops/README.md)). Semantic analysis resolves names, infers polymorphic types, checks coercions and overloadings, and lays out records and arrays before emitting lower-level IR and backpatched jumps.
 
@@ -109,7 +109,7 @@ Each compiler stage transforms one intermediate representation into the next: **
 | [Rust-Subset Compiler Front End (Appendix A)](examples/rust_frontend/README.md) | — | 2, 6, 8 | app. A (Rust front end) |
 | [Python-Subset Compiler Front End (Appendix A)](examples/python_frontend/README.md) | — | 2, 3, 6 | app. A (Python front end) |
 
-### Runtime and code generation
+### Runtime and code generation (Ch. 7–8)
 
 A compiled program still needs ways to manage lexical nesting, heap garbage collection, register allocation, instruction selection, and peephole cleanup on its target machine. These examples connect the runtime representation of data with the machine instructions emitted to use it.
 
@@ -125,7 +125,7 @@ A compiled program still needs ways to manage lexical nesting, heap garbage coll
 | [Global Register Allocation by Graph Coloring](examples/graph_color_regalloc/README.md) | 15 | 9 | 8 |
 | [Dynamic-Programming Tree Tiling and Peephole Optimization](examples/dp_tiling/README.md) | 15 | 9 | 8 |
 
-### Optimization and program analysis
+### Optimization and program analysis (Ch. 8–12, App. B)
 
 An optimization changes how a program runs while preserving its observable behavior. Analyses collect the facts needed to justify those changes, from basic-block value numbering and global bitvector/lattice data-flow frameworks to software pipelining, polyhedral loop transformations, and Datalog/ROBDD interprocedural pointer analysis.
 

@@ -71,4 +71,4 @@ This repository currently demonstrates lexer-specification regex macros in [`lex
 
 - [Open-Source Lexer and Parser Tools & Real Compiler Architectures](open_source_lexer_parser_tools.md)
 - [A Reference Guide to Programming-Language Design](language_design_guide.md)
-- Back to [Repository README](../README.md#scanning-and-parsing)
+- Back to [Repository README](../README.md#edition-guide)

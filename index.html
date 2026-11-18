@@ -222,12 +222,13 @@
     <p class="intro">72 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books, plus modern front-end parsing extensions. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
-        <li><a href="#start">Start here</a></li>
-        <li><a href="#front-end">Scanning and parsing</a></li>
-        <li><a href="#advanced-parsing">Advanced parsing</a></li>
-        <li><a href="#translation">Translation and semantic analysis</a></li>
-        <li><a href="#runtime">Runtime and code generation</a></li>
-        <li><a href="#optimization">Optimization and program analysis</a></li>
+        <li><a href="#start">Start here (Ch. 1–2)</a></li>
+        <li><a href="#front-end">Scanning and parsing (Ch. 3–4)</a></li>
+        <li><a href="#advanced-parsing">Advanced parsing (cf. Ch. 3–5)</a></li>
+        <li><a href="#extended-resources">Extended resources (cf. Ch. 3–5)</a></li>
+        <li><a href="#translation">Translation &amp; semantic analysis (Ch. 5–6)</a></li>
+        <li><a href="#runtime">Runtime &amp; codegen (Ch. 7–8)</a></li>
+        <li><a href="#optimization">Optimization (Ch. 8–12)</a></li>
         <li><a href="#editions">Editions and scope</a></li>
         <li><a href="#coverage-gaps">Coverage gaps</a></li>
       </ul>
@@ -243,7 +244,7 @@
         <span id="catalog-count" class="filter-count">Showing 72 of 72 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
-      <h2 id="start-title">Start here</h2>
+      <h2 id="start-title">Start here (Ch. 1–2, App. A)</h2>
       <p>A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 1 &amp; 2: What is a compiler, and why is it built as a pipeline?</summary>
@@ -284,7 +285,7 @@ python3 -m unittest examples/*/main.py</code></pre>
       </ul>
     </section>
     <section id="front-end" aria-labelledby="front-end-title">
-      <h2 id="front-end-title">Scanning and parsing</h2>
+      <h2 id="front-end-title">Scanning and parsing (Ch. 3–4)</h2>
       <p>Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit together according to a grammar via derivations, rewriting, handwritten recursive-descent and table-driven <code>LL(1)</code>/<code>SLR</code>/<code>LALR(1)</code>/<code>LR(1)</code> parsers, classical and LR precedence resolution, integrated <code>.l</code>/<code>.y</code> AST pipelines, and table-integrated syntax-error recovery.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 3 &amp; 4: Why split lexical scanning from grammar parsing?</summary>
@@ -529,33 +530,12 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/parser_error_recovery/main.rs">Rust source</a> · <a href="examples/parser_error_recovery/main.py">Python source</a></p>
         </article></li>
       </ul>
-      <details class="study-note" open>
-        <summary>Extended Resources — Open-Source Tools, Real Compilers, Parsing Comparison, Language Design &amp; Macros</summary>
-        <div class="study-grid">
-          <div class="study-block">
-            <h3><a href="docs/open_source_lexer_parser_tools.md">Open-Source Tools &amp; Real Compilers</a></h3>
-            <ul>
-              <li><strong>Lexer &amp; parser tools:</strong> <code>Flex</code>, <code>re2c/re2rust</code>, <code>Logos</code>, <code>JFlex</code>, <code>Ragel</code>; <code>GNU Bison</code>, <code>LALRPOP</code>, <code>ANTLR 4</code>, <code>Tree-sitter</code>, <code>Java CUP</code>.</li>
-              <li><strong>Production front ends:</strong> <code>GCC</code>, <code>Clang</code>, <code>rustc</code>, <code>Go</code>, <code>V8</code>, <code>CPython</code> (PEG), <code>Verible</code> (Flex+Bison counterexample), <code>Xezim</code>, <code>Slopman-e</code>.</li>
-              <li><strong>Algorithms &amp; rigor:</strong> Implementation (handwritten vs. generated) vs. strategy (<code>LL</code>/<code>LR</code>/<code>LALR</code>/<code>IELR</code>/<code>GLR</code>/<code>PEG</code>/<code>Pratt</code>), why <code>LALR(1)</code> isn't universally best, and S/R, R/R, &amp; dangling-else trees.</li>
-            </ul>
-          </div>
-          <div class="study-block">
-            <h3><a href="docs/language_design_guide.md">Programming-Language Design Guide</a></h3>
-            <p>Why language design spans far beyond <code>LL</code>/<code>LR</code> grammar classes (scoping, evaluation order, types, memory management, modules, macros, concurrency, compatibility), with a 7-book reading roadmap (<em>Programming Language Pragmatics</em>, <em>Crafting Interpreters</em>, <em>TAPL</em>, <em>PFPL</em>, <em>D&amp;E of C++</em>).</p>
-          </div>
-          <div class="study-block">
-            <h3><a href="docs/macro_systems.md">Macro Systems Architecture</a></h3>
-            <p>Separates <strong>lexer regex macros</strong> (<code>{digit}</code> in <code>lex_generator</code>), <strong>token preprocessors</strong> (C <code>cpp</code>, SystemVerilog <code>`define</code>/<code>`ifdef</code>), and <strong>syntax-aware macros</strong> (Rust <code>macro_rules!</code>, Lisp <code>defmacro</code>, Scheme hygienic <code>syntax-rules</code>).</p>
-          </div>
-        </div>
-      </details>
     </section>
     <section id="advanced-parsing" aria-labelledby="advanced-parsing-title">
-      <h2 id="advanced-parsing-title">Advanced parsing techniques (modern extensions)</h2>
+      <h2 id="advanced-parsing-title">Advanced parsing techniques (modern extensions; cf. Ch. 3–5)</h2>
       <p>These five standalone demonstrations explore practical post-Dragon-Book front-end parsing and lexing designs—explicitly labeled as modern extensions rather than historical Green (1977), Red (1986), or Purple (2006) textbook chapters.</p>
       <details class="study-note" open>
-        <summary>Study Note — Beyond Classical LL/LR: How Modern Compilers and IDEs Parse</summary>
+        <summary>Study Note — Beyond Classical LL/LR (cf. Ch. 3–5): How Modern Compilers and IDEs Parse</summary>
         <div class="study-grid">
           <div class="study-block">
             <h3>What this section covers</h3>
@@ -620,8 +600,33 @@ python3 -m unittest examples/*/main.py</code></pre>
         </article></li>
       </ul>
     </section>
+    <section id="extended-resources" aria-labelledby="extended-resources-title">
+      <h2 id="extended-resources-title">Extended resources (cf. Ch. 3–5)</h2>
+      <p>Reference companions linking the scanning and parsing chapters to open-source tooling, real compiler front ends, language-design literature, and macro architectures.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Tools, Real Compilers, Algorithm Tradeoffs, Language Design &amp; Macros</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3><a href="docs/open_source_lexer_parser_tools.md">Open-Source Tools &amp; Real Compilers</a></h3>
+            <ul>
+              <li><strong>Lexer &amp; parser tools:</strong> <code>Flex</code>, <code>re2c/re2rust</code>, <code>Logos</code>, <code>JFlex</code>, <code>Ragel</code>; <code>GNU Bison</code>, <code>LALRPOP</code>, <code>ANTLR 4</code>, <code>Tree-sitter</code>, <code>Java CUP</code>.</li>
+              <li><strong>Production front ends:</strong> <code>GCC</code>, <code>Clang</code>, <code>rustc</code>, <code>Go</code>, <code>V8</code>, <code>CPython</code> (PEG), <code>Verible</code> (Flex+Bison counterexample), <code>Xezim</code>, <code>Slopman-e</code>.</li>
+              <li><strong>Algorithms &amp; rigor:</strong> Implementation (handwritten vs. generated) vs. strategy (<code>LL</code>/<code>LR</code>/<code>LALR</code>/<code>IELR</code>/<code>GLR</code>/<code>PEG</code>/<code>Pratt</code>), why <code>LALR(1)</code> isn't universally best, and S/R, R/R, &amp; dangling-else trees.</li>
+            </ul>
+          </div>
+          <div class="study-block">
+            <h3><a href="docs/language_design_guide.md">Programming-Language Design Guide</a></h3>
+            <p>Why language design spans far beyond <code>LL</code>/<code>LR</code> grammar classes (scoping, evaluation order, types, memory management, modules, macros, concurrency, compatibility), with a 7-book reading roadmap (<em>Programming Language Pragmatics</em>, <em>Crafting Interpreters</em>, <em>TAPL</em>, <em>PFPL</em>, <em>D&amp;E of C++</em>).</p>
+          </div>
+          <div class="study-block">
+            <h3><a href="docs/macro_systems.md">Macro Systems Architecture</a></h3>
+            <p>Separates <strong>lexer regex macros</strong> (<code>{digit}</code> in <code>lex_generator</code>), <strong>token preprocessors</strong> (C <code>cpp</code>, SystemVerilog <code>`define</code>/<code>`ifdef</code>), and <strong>syntax-aware macros</strong> (Rust <code>macro_rules!</code>, Lisp <code>defmacro</code>, Scheme hygienic <code>syntax-rules</code>).</p>
+          </div>
+        </div>
+      </details>
+    </section>
     <section id="translation" aria-labelledby="translation-title">
-      <h2 id="translation-title">Translation and semantic analysis</h2>
+      <h2 id="translation-title">Translation and semantic analysis (Ch. 5–6, App. A)</h2>
       <p>Each compiler stage transforms one intermediate representation into the next: <strong>tokens</strong> (<a href="examples/lexer/README.md"><code>lexer</code></a>) → <strong>parse tree vs. AST</strong> (<a href="examples/ast_construction/README.md"><code>ast_construction</code></a>) → <strong>symbol tables &amp; attributes</strong> (<a href="examples/scope_types/README.md"><code>scope_types</code></a>, <a href="examples/attributes/README.md"><code>attributes</code></a>) → <strong>expression DAGs, three-address IR &amp; SSA</strong> (<a href="examples/record_ir/README.md"><code>record_ir</code></a>, <a href="examples/ssa/README.md"><code>ssa</code></a>) → <strong>CFGs</strong> (<a href="examples/natural_loops/README.md"><code>natural_loops</code></a>). Semantic analysis resolves names, infers polymorphic types, handles coercions and overloadings, and computes aligned record and array addresses.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 5 &amp; 6: How do we check meaning and turn ASTs into clean intermediate code?</summary>
@@ -809,7 +814,7 @@ python3 -m unittest examples/*/main.py</code></pre>
       </ul>
     </section>
     <section id="runtime" aria-labelledby="runtime-title">
-      <h2 id="runtime-title">Runtime and code generation</h2>
+      <h2 id="runtime-title">Runtime and code generation (Ch. 7–8)</h2>
       <p>A compiled program needs ways to organize activation records and variable-length stack arrays, collect garbage across generations or incrementally, allocate registers globally, tile expression trees, and emit target instructions.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 7 &amp; 8: How does code manage memory at runtime and map onto finite CPU registers?</summary>
@@ -926,10 +931,10 @@ python3 -m unittest examples/*/main.py</code></pre>
       </ul>
     </section>
     <section id="optimization" aria-labelledby="optimization-title">
-      <h2 id="optimization-title">Optimization and program analysis</h2>
+      <h2 id="optimization-title">Optimization and program analysis (Ch. 8–12, App. B)</h2>
       <p>Optimizations preserve observable behavior using sound analysis facts: local value numbering, classic bitvector and lattice data-flow frameworks, lazy code motion, loop optimizations, T1/T2 region analysis, modulo scheduling, polyhedral dependence &amp; affine partitioning, and context-sensitive / Datalog-ROBDD pointer analysis.</p>
       <details class="study-note" open>
-        <summary>Study Note — Chapter 9–12: How do we make code faster without changing what it means?</summary>
+        <summary>Study Note — Chapters 8–12 &amp; Appendix B: How do we make code faster without changing what it means?</summary>
         <div class="study-grid">
           <div class="study-block">
             <h3>What this chapter is about</h3>
@@ -1195,7 +1200,7 @@ python3 -m unittest examples/*/main.py</code></pre>
   (() => {
     "use strict";
 
-    const SECTION_IDS = ["start", "front-end", "advanced-parsing", "translation", "runtime", "optimization", "editions", "coverage-gaps"];
+    const SECTION_IDS = ["start", "front-end", "advanced-parsing", "extended-resources", "translation", "runtime", "optimization", "editions", "coverage-gaps"];
     const catalogView = document.getElementById("catalog-view");
     const viewerView = document.getElementById("viewer");
     const viewerPathEl = document.getElementById("viewer-path");
@@ -1289,29 +1294,31 @@ python3 -m unittest examples/*/main.py</code></pre>
       let html = `<div class="sidebar-group">`;
       html += `<a class="sidebar-link${activePath === "README.md" ? " active" : ""}" href="#/README.md">Repository README</a>`;
       html += `</div>`;
+      const extTitle = document.getElementById("extended-resources-title")?.textContent?.trim() || "Extended resources (cf. Ch. 3–5)";
       const docGuides = [
         { path: "docs/open_source_lexer_parser_tools.md", title: "Open-Source Tools & Real Compilers" },
         { path: "docs/language_design_guide.md", title: "Programming-Language Design Guide" },
         { path: "docs/macro_systems.md", title: "Macro Systems Architecture" },
       ].filter((d) => !q || d.title.toLowerCase().includes(q) || d.path.toLowerCase().includes(q));
-      if (docGuides.length > 0) {
-        html += `<div class="sidebar-group"><div class="sidebar-group-title">Extended resources (docs/)</div><ul class="sidebar-list">`;
-        for (const d of docGuides) {
-          html += `<li><a class="sidebar-link${activePath === d.path ? " active" : ""}" href="#/${d.path}">${escapeHtml(d.title)}</a></li>`;
-        }
-        html += `</ul></div>`;
-      }
       for (const g of groups) {
         const matched = g.items.filter(
           (it) => !q || it.title.toLowerCase().includes(q) || it.slug.toLowerCase().includes(q)
         );
-        if (matched.length === 0) continue;
-        html += `<div class="sidebar-group"><div class="sidebar-group-title">${escapeHtml(g.groupTitle)}</div><ul class="sidebar-list">`;
-        for (const it of matched) {
-          const isAct = it.slug === activeSlug;
-          html += `<li><a class="sidebar-link${isAct ? " active" : ""}" href="#/examples/${escapeHtml(it.slug)}/README.md">${escapeHtml(it.title)}</a></li>`;
+        if (matched.length > 0) {
+          html += `<div class="sidebar-group"><div class="sidebar-group-title">${escapeHtml(g.groupTitle)}</div><ul class="sidebar-list">`;
+          for (const it of matched) {
+            const isAct = it.slug === activeSlug;
+            html += `<li><a class="sidebar-link${isAct ? " active" : ""}" href="#/examples/${escapeHtml(it.slug)}/README.md">${escapeHtml(it.title)}</a></li>`;
+          }
+          html += `</ul></div>`;
         }
-        html += `</ul></div>`;
+        if (g.secId === "advanced-parsing" && docGuides.length > 0) {
+          html += `<div class="sidebar-group"><div class="sidebar-group-title">${escapeHtml(extTitle)}</div><ul class="sidebar-list">`;
+          for (const d of docGuides) {
+            html += `<li><a class="sidebar-link${activePath === d.path ? " active" : ""}" href="#/${d.path}">${escapeHtml(d.title)}</a></li>`;
+          }
+          html += `</ul></div>`;
+        }
       }
       sidebarNavEl.innerHTML = html;
     }
