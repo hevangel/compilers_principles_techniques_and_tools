@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="55 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="56 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,12 +214,12 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (55)</a>
+        <a class="btn" href="#/">Catalog (56)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">55 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">56 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -236,10 +236,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 55 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 56 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 55 of 55 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 56 of 56 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -749,11 +749,11 @@ python3 -m unittest examples/*/main.py</code></pre>
             <p>Guessing that <code>a + b</code> hasn't changed or that two loops can run in parallel causes silent miscompilation if a branch or pointer alias disagrees. We need <strong>sound</strong> conservative rules (<em>may</em> vs. <em>must</em>) that only optimize when proven safe on all paths.</p>
           </div>
           <div class="study-block">
-            <h3>How the 17 examples fit together</h3>
+            <h3>How the 18 examples fit together</h3>
             <ul>
               <li><strong>Local &amp; global data-flow:</strong> <code>value_numbering</code> → <code>liveness</code>, <code>reaching_defs</code>, <code>available_exprs</code>, <code>const_prop</code>, <code>lazy_code_motion</code>.</li>
               <li><strong>Loops &amp; regions:</strong> <code>natural_loops</code> → <code>licm_iv</code> → <code>region_dataflow</code>.</li>
-              <li><strong>Instruction &amp; cache parallelism:</strong> <code>list_schedule</code>, <code>software_pipeline</code>, <code>loop_locality</code>, <code>dependence_test</code>, <code>affine_partition</code>.</li>
+              <li><strong>Instruction &amp; cache parallelism:</strong> <code>list_schedule</code>, <code>software_pipeline</code>, <code>trace_schedule</code>, <code>loop_locality</code>, <code>dependence_test</code>, <code>affine_partition</code>.</li>
               <li><strong>Pointers:</strong> <code>points_to</code> → <code>context_points_to</code> → <code>datalog_bdd</code>.</li>
             </ul>
           </div>
@@ -871,6 +871,16 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/software_pipeline/main.rs">Rust source</a> · <a href="examples/software_pipeline/main.py">Python source</a></p>
         </article></li>
         <li><article>
+          <h3><a href="examples/trace_schedule/README.md">Global Trace Scheduling and Speculative Code Motion (§10.4)</a></h3>
+          <p>Schedule hot multi-block traces across branches with speculative safety checks, cold liveness barriers, and edge compensation.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>—</dd>
+            <dt>2006 Purple</dt><dd>10 (§10.4)</dd>
+          </dl>
+          <p><a href="examples/trace_schedule/main.rs">Rust source</a> · <a href="examples/trace_schedule/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
           <h3><a href="examples/loop_locality/README.md">Loop interchange and spatial locality</a></h3>
           <p>Change matrix-multiply traversal while preserving the result.</p>
           <dl aria-label="Related chapters by edition">
@@ -947,7 +957,7 @@ python3 -m unittest examples/*/main.py</code></pre>
       <h2 id="coverage-gaps-title">Coverage gaps</h2>
       <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators and <code>Appendix A</code> front-end architectures are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, <a href="examples/rust_frontend/README.md"><code>rust_frontend</code></a>, <a href="examples/python_frontend/README.md"><code>python_frontend</code></a>, and <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>.</p>
       <ul>
-        <li><strong>Global trace/superblock scheduling.</strong> Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (<code>§10.4</code>) out of scope.</li>
+        <li><strong>Hardware-predicated hyperblocks.</strong> Chapter 10 covers basic-block list scheduling (<a href="examples/list_schedule/README.md"><code>list_schedule</code></a>), acyclic trace scheduling with speculative code motion and edge compensation (<a href="examples/trace_schedule/README.md"><code>trace_schedule</code></a>, <code>§10.4</code>), and cyclic modulo software pipelining (<a href="examples/software_pipeline/README.md"><code>software_pipeline</code></a>), leaving hardware-predicated execution and full if-converted hyperblocks (<code>§10.4</code>) out of scope.</li>
         <li><strong>Historical survey chapters.</strong> Compiler history and architectural surveys (<code>1977 Green</code> Ch. 1–2 language survey and Appendix B; <code>1986 Red</code> Ch. 11–12 historical compiler notes) have no standalone demos.</li>
         <li><strong>External C-source emission.</strong> Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone <code>.c</code>/<code>.h</code> toolchain files or full POSIX <code>yacc</code>/<code>flex</code> start-condition ecosystems.</li>
       </ul>

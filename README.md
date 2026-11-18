@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-55 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+56 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -112,6 +112,7 @@ An optimization changes how a program runs while preserving its observable behav
 | [Region-Based Data-Flow Analysis (T1/T2 Reducible Regions)](examples/region_dataflow/README.md) | 13–14 | 10 | 9 |
 | [Basic-block list scheduling](examples/list_schedule/README.md) | — | — | 10 |
 | [Software Pipelining and Modular Variable Expansion](examples/software_pipeline/README.md) | — | — | 10 |
+| [Global Trace Scheduling and Speculative Code Motion (§10.4)](examples/trace_schedule/README.md) | — | — | 10 (§10.4) |
 | [Loop interchange and spatial locality](examples/loop_locality/README.md) | — | — | 11 |
 | [Array Dependence Testing (GCD, Banerjee, and Fourier-Motzkin)](examples/dependence_test/README.md) | — | — | 11 |
 | [Affine Partitioning, Unimodular Transforms, and Appendix B Linear Algebra](examples/affine_partition/README.md) | — | — | 11, app. B |
@@ -123,7 +124,7 @@ An optimization changes how a program runs while preserving its observable behav
 
 This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The `.l`/`.y` DSL generators and `Appendix A` front-end architectures are covered in self-contained form by [`lex_generator`](examples/lex_generator/README.md), [`yacc_generator`](examples/yacc_generator/README.md), [`pascal_frontend`](examples/pascal_frontend/README.md), [`complete_frontend`](examples/complete_frontend/README.md), [`rust_frontend`](examples/rust_frontend/README.md), [`python_frontend`](examples/python_frontend/README.md), and [`tiny_compiler`](examples/tiny_compiler/README.md).
 
-- **Global trace/superblock scheduling.** Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (`§10.4`) out of scope.
+- **Hardware-predicated hyperblocks.** Chapter 10 covers basic-block list scheduling ([`list_schedule`](examples/list_schedule/README.md)), acyclic trace scheduling with speculative code motion and edge compensation ([`trace_schedule`](examples/trace_schedule/README.md), `§10.4`), and cyclic modulo software pipelining ([`software_pipeline`](examples/software_pipeline/README.md)), leaving hardware-predicated execution and full if-converted hyperblocks (`§10.4`) out of scope.
 - **Historical survey chapters.** Compiler history and architectural surveys (`1977 Green` Ch. 1–2 language survey and Appendix B; `1986 Red` Ch. 11–12 historical compiler notes) have no standalone demos.
 - **External C-source emission.** Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone `.c`/`.h` toolchain files or full POSIX `yacc`/`flex` start-condition ecosystems.
 
