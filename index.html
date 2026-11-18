@@ -6,36 +6,174 @@
   <meta name="description" content="49 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
-    :root { color-scheme: light; --ink: #20252b; --muted: #4a5564; --paper: #fbf8f1; --line: #d5cec0; --link: #234e43; }
+    :root {
+      color-scheme: light;
+      --ink: #20252b;
+      --muted: #4a5564;
+      --paper: #fbf8f1;
+      --card: #fffdf8;
+      --line: #d5cec0;
+      --link: #234e43;
+      --accent-soft: #e5eee9;
+      --code-bg: #f3eee3;
+      --code-head: #eae4d8;
+      --tok-comment: #66707d;
+      --tok-doc: #3f6356;
+      --tok-kw: #8c2432;
+      --tok-str: #1f6444;
+      --tok-num: #984b0d;
+      --tok-type: #2c4c7e;
+      --tok-fn: #663c94;
+      --tok-attr: #7d5212;
+      --tok-op: #515d6d;
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.6 system-ui, sans-serif; }
-    header, main, footer { width: min(72rem, 100% - 2.5rem); margin-inline: auto; }
-    header { padding-block: 3.5rem 2rem; border-bottom: 1px solid var(--line); }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.6 system-ui, -apple-system, sans-serif; }
+    header, main, footer { width: min(76rem, 100% - 2.5rem); margin-inline: auto; }
+    header { padding-block: 2.5rem 1.5rem; border-bottom: 1px solid var(--line); }
+    .header-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem; }
     h1, h2 { font-family: Georgia, serif; line-height: 1.08; }
-    h1 { font-size: clamp(2.5rem, 7vw, 5rem); margin: .2em 0; }
-    h2 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0 0 .65em; }
+    h1 { font-size: clamp(2.1rem, 5.5vw, 3.8rem); margin: .2em 0; }
+    h2 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); margin: 0 0 .65em; }
     h3 { line-height: 1.25; margin: 0 0 .5rem; }
     p { margin: .5rem 0; }
     a { color: var(--link); text-underline-offset: .2em; }
-    a:focus-visible { outline: 2px solid var(--link); outline-offset: 4px; }
+    a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-weight: 700; font-size: .75rem; color: var(--muted); }
-    .intro { max-width: 56ch; font-size: 1.15rem; }
-    nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; padding: 0; list-style: none; }
+    .intro { max-width: 60ch; font-size: 1.08rem; }
+    nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; padding: 0; list-style: none; margin: .8rem 0 0; }
+    .header-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .42rem .8rem; border: 1px solid var(--line); border-radius: .35rem;
+      background: var(--card); color: var(--ink); font: inherit; font-size: .9rem;
+      text-decoration: none; cursor: pointer;
+    }
+    .btn:hover { border-color: var(--link); background: var(--accent-soft); color: var(--link); }
+    .btn.primary { background: var(--link); color: #fff; border-color: var(--link); }
+    .btn.primary:hover { filter: brightness(1.08); color: #fff; }
+    .catalog-toolbar {
+      display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between;
+      padding-block: 1.25rem .25rem;
+    }
+    .search-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 18rem; max-width: 30rem; }
+    .search-input {
+      width: 100%; padding: .48rem .75rem; border: 1px solid var(--line); border-radius: .35rem;
+      background: var(--card); color: var(--ink); font: inherit; font-size: .95rem;
+    }
+    .filter-count { font-size: .88rem; color: var(--muted); white-space: nowrap; }
     section { padding-block: 2rem; border-bottom: 1px solid var(--line); }
     .examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .8rem; padding: 0; list-style: none; }
-    article { height: 100%; padding: 1.15rem; background: #fffdf8; border: 1px solid var(--line); border-radius: .4rem; }
+    .examples > li[hidden] { display: none; }
+    article { height: 100%; padding: 1.15rem; background: var(--card); border: 1px solid var(--line); border-radius: .4rem; transition: border-color .12s ease; }
+    article:hover { border-color: #9cb3aa; }
     dl { display: grid; grid-template-columns: auto 1fr; gap: .1rem .7rem; margin: .8rem 0; font-size: .9rem; color: var(--muted); }
     dt { font-weight: 650; }
     dd { margin: 0; }
-    pre { padding: .8rem 1rem; overflow-x: auto; background: #eae4d8; border-radius: .35rem; }
+    pre { padding: .8rem 1rem; overflow-x: auto; background: var(--code-head); border-radius: .35rem; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
     footer { padding-block: 1.5rem; color: var(--muted); }
+
+    /* Single-page app reader / source viewer */
+    .viewer-shell { padding-block: 1.25rem 2.5rem; border-bottom: 1px solid var(--line); }
+    .viewer-bar {
+      display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: space-between;
+      padding: .7rem .9rem; background: var(--card); border: 1px solid var(--line); border-radius: .45rem;
+      margin-bottom: 1rem; position: sticky; top: .5rem; z-index: 10;
+      box-shadow: 0 2px 10px rgba(32, 37, 43, .06);
+    }
+    .viewer-bar-left, .viewer-bar-right, .viewer-tabs { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+    .path-crumb { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; color: var(--muted); background: var(--code-bg); padding: .2rem .55rem; border-radius: .3rem; }
+    .tab-btn {
+      padding: .34rem .7rem; border: 1px solid var(--line); border-radius: .35rem;
+      background: var(--paper); color: var(--ink); font: inherit; font-size: .88rem; cursor: pointer;
+    }
+    .tab-btn:hover { border-color: var(--link); }
+    .tab-btn.active { background: var(--link); color: #fff; border-color: var(--link); font-weight: 600; }
+    .viewer-grid { display: grid; grid-template-columns: 17.5rem minmax(0, 1fr); gap: 1rem; align-items: start; }
+    @media (max-width: 960px) {
+      .viewer-grid { grid-template-columns: minmax(0, 1fr); }
+      .sidebar { max-height: 16rem; }
+    }
+    .sidebar {
+      background: var(--card); border: 1px solid var(--line); border-radius: .45rem;
+      padding: .75rem; max-height: calc(100vh - 7rem); overflow-y: auto; position: sticky; top: 4.5rem;
+    }
+    .sidebar-filter { width: 100%; padding: .35rem .55rem; margin-bottom: .6rem; border: 1px solid var(--line); border-radius: .3rem; background: var(--paper); font: inherit; font-size: .86rem; }
+    .sidebar-group { margin-top: .7rem; }
+    .sidebar-group-title { font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin: .2rem 0 .3rem; }
+    .sidebar-list { list-style: none; padding: 0; margin: 0; }
+    .sidebar-link {
+      display: block; width: 100%; text-align: left; padding: .28rem .45rem; border-radius: .28rem;
+      text-decoration: none; color: var(--ink); font-size: .86rem; line-height: 1.3;
+    }
+    .sidebar-link:hover { background: var(--accent-soft); color: var(--link); }
+    .sidebar-link.active { background: var(--link); color: #fff; font-weight: 600; }
+    .doc-panel { background: var(--card); border: 1px solid var(--line); border-radius: .45rem; padding: 1.5rem 1.75rem; min-width: 0; }
+    @media (max-width: 640px) { .doc-panel { padding: 1rem; } }
+
+    /* Rendered Markdown styles */
+    .md-body h1 { font-size: clamp(1.7rem, 3vw, 2.25rem); margin: 0 0 .7rem; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+    .md-body h2 { font-size: 1.38rem; margin: 1.55rem 0 .55rem; border-bottom: 1px solid #ebe4d6; padding-bottom: .25rem; }
+    .md-body h3 { font-size: 1.12rem; margin: 1.2rem 0 .4rem; font-family: Georgia, serif; }
+    .md-body h4 { font-size: 1rem; margin: 1rem 0 .35rem; }
+    .md-body p, .md-body ul, .md-body ol { margin: .65rem 0; }
+    .md-body ul, .md-body ol { padding-left: 1.4rem; }
+    .md-body li { margin: .25rem 0; }
+    .md-body code { background: var(--code-bg); padding: .12rem .32rem; border-radius: .25rem; }
+    .md-body pre { background: var(--code-bg); border: 1px solid var(--line); padding: .85rem 1rem; border-radius: .4rem; overflow-x: auto; margin: .85rem 0; }
+    .md-body pre code { background: transparent; padding: 0; font-size: .88rem; line-height: 1.5; }
+    .md-body blockquote { margin: .85rem 0; padding: .25rem .9rem; border-left: 3px solid var(--link); color: var(--muted); background: var(--paper); }
+    .md-body hr { border: 0; border-top: 1px solid var(--line); margin: 1.25rem 0; }
+    .table-wrap { overflow-x: auto; margin: .9rem 0; }
+    .md-body table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+    .md-body th, .md-body td { border: 1px solid var(--line); padding: .45rem .65rem; text-align: left; }
+    .md-body th { background: var(--code-bg); font-weight: 650; }
+    .md-body tr:nth-child(even) td { background: #fdfbf6; }
+
+    /* Syntax-highlighted source code viewer */
+    .code-shell { border: 1px solid var(--line); border-radius: .45rem; overflow: hidden; background: var(--code-bg); }
+    .code-meta {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem;
+      padding: .5rem .85rem; background: var(--code-head); border-bottom: 1px solid var(--line); font-size: .84rem; color: var(--muted);
+    }
+    .code-scroll { overflow-x: auto; }
+    .code-table { border-collapse: collapse; width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86rem; line-height: 1.5; }
+    .code-table tr:hover td { background: rgba(35, 78, 67, .05); }
+    .code-table tr.line-hl td { background: rgba(217, 155, 38, .18); }
+    .ln {
+      width: 1%; min-width: 3rem; padding: 0 .75rem 0 .5rem; text-align: right; color: #7a8492;
+      user-select: none; border-right: 1px solid var(--line); background: #eee8da; vertical-align: top; cursor: pointer;
+    }
+    .lc { padding: 0 1rem; white-space: pre; tab-size: 4; }
+    .tok-comment { color: var(--tok-comment); font-style: italic; }
+    .tok-doc { color: var(--tok-doc); font-style: italic; }
+    .tok-kw { color: var(--tok-kw); font-weight: 600; }
+    .tok-str { color: var(--tok-str); }
+    .tok-num { color: var(--tok-num); }
+    .tok-type { color: var(--tok-type); }
+    .tok-fn { color: var(--tok-fn); font-weight: 600; }
+    .tok-attr, .tok-lifetime { color: var(--tok-attr); }
+    .tok-macro { color: var(--tok-fn); }
+    .tok-op { color: var(--tok-op); }
+    .status-box { padding: 1rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--paper); }
   </style>
 </head>
 <body>
   <header>
-    <p class="eyebrow">Compiler construction · Rust &amp; Python</p>
-    <h1>The Dragon Book in Rust and Python</h1>
-    <p class="intro">49 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Each guide explains the concept, what to look for in the output, and where to read more.</p>
+    <div class="header-top">
+      <div>
+        <p class="eyebrow">Compiler construction · Rust &amp; Python</p>
+        <h1>The Dragon Book in Rust and Python</h1>
+      </div>
+      <div class="header-actions">
+        <a class="btn" href="#/">Catalog (49)</a>
+        <a class="btn" href="README.md">Repository README</a>
+        <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
+      </div>
+    </div>
+    <p class="intro">49 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -48,6 +186,14 @@
     </nav>
   </header>
   <main>
+    <div id="catalog-view">
+      <div class="catalog-toolbar" role="search">
+        <div class="search-wrap">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 49 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
+        </div>
+        <span id="catalog-count" class="filter-count">Showing 49 of 49 examples</span>
+      </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
       <p>A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.</p>
@@ -584,7 +730,926 @@ python3 -m unittest examples/*/main.py</code></pre>
       </ul>
       <p>See <a href="README.md#coverage-gaps">coverage gaps</a> for scope boundaries such as full Lex/Yacc file generators, global trace scheduling, and complete Appendix A Pascal/Java compilers.</p>
     </section>
+    </div>
+
+    <section id="viewer" class="viewer-shell" aria-label="Document and source viewer" hidden>
+      <div class="viewer-bar">
+        <div class="viewer-bar-left">
+          <a class="btn" href="#/">&larr; All examples</a>
+          <span id="viewer-path" class="path-crumb"></span>
+        </div>
+        <div class="viewer-bar-right">
+          <div id="viewer-tabs" class="viewer-tabs" role="tablist" aria-label="Example files">
+            <button class="tab-btn" type="button" data-file="README.md">Guide (README.md)</button>
+            <button class="tab-btn" type="button" data-file="main.rs">Rust (main.rs)</button>
+            <button class="tab-btn" type="button" data-file="main.py">Python (main.py)</button>
+          </div>
+          <button id="copy-btn" class="btn" type="button">Copy</button>
+          <a id="raw-link" class="btn raw-link" href="#" target="_blank" rel="noopener noreferrer">Raw &nearr;</a>
+        </div>
+      </div>
+      <div class="viewer-grid">
+        <aside class="sidebar" aria-label="Example explorer">
+          <input id="sidebar-filter" class="sidebar-filter" type="search" placeholder="Filter sidebar..." aria-label="Filter sidebar examples">
+          <div id="sidebar-nav"></div>
+        </aside>
+        <div id="viewer-content" class="doc-panel"></div>
+      </div>
+    </section>
   </main>
   <footer><a href="README.md">Repository README</a> · <a href="https://github.com/hevangel/compilers_principles_techniques_and_tools">Browse on GitHub</a></footer>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const SECTION_IDS = ["start", "front-end", "translation", "runtime", "optimization", "editions"];
+    const catalogView = document.getElementById("catalog-view");
+    const viewerView = document.getElementById("viewer");
+    const viewerPathEl = document.getElementById("viewer-path");
+    const viewerTabsEl = document.getElementById("viewer-tabs");
+    const viewerContentEl = document.getElementById("viewer-content");
+    const sidebarNavEl = document.getElementById("sidebar-nav");
+    const sidebarFilterEl = document.getElementById("sidebar-filter");
+    const copyBtn = document.getElementById("copy-btn");
+    const rawLink = document.getElementById("raw-link");
+    const catalogSearchEl = document.getElementById("catalog-search");
+    const catalogClearEl = document.getElementById("catalog-clear");
+    const catalogCountEl = document.getElementById("catalog-count");
+
+    const fileCache = new Map();
+    let currentDocPath = "";
+    let currentRawText = "";
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function slugify(text) {
+      return text
+        .toLowerCase()
+        .replace(/[`*_~]/g, "")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-");
+    }
+
+    // Extract structured catalog metadata directly from existing semantic HTML cards.
+    const groups = [];
+    const exampleBySlug = new Map();
+    for (const secId of ["start", "front-end", "translation", "runtime", "optimization"]) {
+      const sec = document.getElementById(secId);
+      if (!sec) continue;
+      const groupTitle = sec.querySelector("h2")?.textContent?.trim() || secId;
+      const items = [];
+      for (const li of sec.querySelectorAll(".examples > li")) {
+        const art = li.querySelector("article");
+        if (!art) continue;
+        const headingLink = art.querySelector("h3 a");
+        const href = headingLink?.getAttribute("href") || "";
+        const m = /^examples\/([^/]+)\/README\.md$/.exec(href);
+        const slug = m ? m[1] : href;
+        const title = headingLink?.textContent?.trim() || slug;
+        const searchText = (art.textContent + " " + slug).toLowerCase();
+        li.dataset.search = searchText;
+        const entry = { slug, title, secId, groupTitle, li };
+        items.push(entry);
+        exampleBySlug.set(slug, entry);
+      }
+      groups.push({ secId, groupTitle, items });
+    }
+
+    function filterCatalog(query) {
+      const q = query.trim().toLowerCase();
+      let visible = 0;
+      let total = 0;
+      for (const g of groups) {
+        let groupVisible = 0;
+        for (const item of g.items) {
+          total++;
+          const show = !q || item.li.dataset.search.includes(q);
+          item.li.hidden = !show;
+          if (show) {
+            visible++;
+            groupVisible++;
+          }
+        }
+        const sec = document.getElementById(g.secId);
+        if (sec) sec.hidden = q.length > 0 && groupVisible === 0;
+      }
+      catalogCountEl.textContent = `Showing ${visible} of ${total} examples`;
+      catalogClearEl.hidden = q.length === 0;
+    }
+
+    catalogSearchEl.addEventListener("input", () => filterCatalog(catalogSearchEl.value));
+    catalogClearEl.addEventListener("click", () => {
+      catalogSearchEl.value = "";
+      filterCatalog("");
+      catalogSearchEl.focus();
+    });
+
+    function buildSidebar(activeSlug, activePath) {
+      const q = sidebarFilterEl.value.trim().toLowerCase();
+      let html = `<div class="sidebar-group">`;
+      html += `<a class="sidebar-link${activePath === "README.md" ? " active" : ""}" href="#/README.md">Repository README</a>`;
+      html += `</div>`;
+      for (const g of groups) {
+        const matched = g.items.filter(
+          (it) => !q || it.title.toLowerCase().includes(q) || it.slug.toLowerCase().includes(q)
+        );
+        if (matched.length === 0) continue;
+        html += `<div class="sidebar-group"><div class="sidebar-group-title">${escapeHtml(g.groupTitle)}</div><ul class="sidebar-list">`;
+        for (const it of matched) {
+          const isAct = it.slug === activeSlug;
+          html += `<li><a class="sidebar-link${isAct ? " active" : ""}" href="#/examples/${escapeHtml(it.slug)}/README.md">${escapeHtml(it.title)}</a></li>`;
+        }
+        html += `</ul></div>`;
+      }
+      sidebarNavEl.innerHTML = html;
+    }
+
+    sidebarFilterEl.addEventListener("input", () => {
+      const m = /^examples\/([^/]+)\//.exec(currentDocPath);
+      buildSidebar(m ? m[1] : "", currentDocPath);
+    });
+
+    // --- Syntax Highlighters (tokenizers never operate on escaped HTML) ---
+    const RUST_KEYWORDS = new Set([
+      "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else",
+      "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop",
+      "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self",
+      "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while"
+    ]);
+    const RUST_BUILTINS = new Set([
+      "bool", "char", "str", "i8", "i16", "i32", "i64", "i128", "isize",
+      "u8", "u16", "u32", "u64", "u128", "usize", "f32", "f64",
+      "Option", "Result", "Some", "None", "Ok", "Err", "Vec", "String", "Box",
+      "BTreeMap", "BTreeSet", "HashMap", "HashSet", "VecDeque"
+    ]);
+
+    function tokenizeRust(src) {
+      const tokens = [];
+      let i = 0;
+      const n = src.length;
+      let expectFnName = false;
+
+      const push = (type, text) => {
+        if (text) tokens.push({ type, text });
+      };
+
+      while (i < n) {
+        const ch = src[i];
+
+        // Whitespace
+        if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
+          let j = i + 1;
+          while (j < n && (src[j] === " " || src[j] === "\t" || src[j] === "\n" || src[j] === "\r")) j++;
+          push("plain", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Line comment / doc comment
+        if (ch === "/" && src[i + 1] === "/") {
+          let j = i + 2;
+          while (j < n && src[j] !== "\n") j++;
+          const text = src.slice(i, j);
+          const isDoc = text.startsWith("///") || text.startsWith("//!");
+          push(isDoc ? "doc" : "comment", text);
+          i = j;
+          continue;
+        }
+
+        // Block comment (nested)
+        if (ch === "/" && src[i + 1] === "*") {
+          let depth = 1;
+          let j = i + 2;
+          while (j < n && depth > 0) {
+            if (src[j] === "/" && src[j + 1] === "*") { depth++; j += 2; }
+            else if (src[j] === "*" && src[j + 1] === "/") { depth--; j += 2; }
+            else j++;
+          }
+          push("comment", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Attributes #[...] or #![...]
+        if (ch === "#" && (src[i + 1] === "[" || (src[i + 1] === "!" && src[i + 2] === "["))) {
+          let depth = 0;
+          let j = i + 1;
+          if (src[j] === "!") j++;
+          while (j < n) {
+            if (src[j] === "[") depth++;
+            else if (src[j] === "]") {
+              depth--;
+              if (depth === 0) { j++; break; }
+            }
+            j++;
+          }
+          push("attr", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Raw string r"...", r#"..."#, br#"..."#
+        const rawMatch = /^(?:br?|r)(#*)(")/.exec(src.slice(i));
+        if (rawMatch) {
+          const hashes = rawMatch[1];
+          const closeSeq = '"' + hashes;
+          const startBody = i + rawMatch[0].length;
+          const endIdx = src.indexOf(closeSeq, startBody);
+          const j = endIdx === -1 ? n : endIdx + closeSeq.length;
+          push("str", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Byte or regular double-quoted string
+        if (ch === '"' || (ch === "b" && src[i + 1] === '"')) {
+          let j = ch === "b" ? i + 2 : i + 1;
+          while (j < n) {
+            if (src[j] === "\\") { j += 2; continue; }
+            if (src[j] === '"') { j++; break; }
+            j++;
+          }
+          push("str", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Character literal vs lifetime ('a, 'static)
+        if (ch === "'" || (ch === "b" && src[i + 1] === "'")) {
+          const start = ch === "b" ? i + 1 : i;
+          const charMatch = /^'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]+\}|.)|[^'\\\n])'/.exec(src.slice(start));
+          if (charMatch) {
+            const j = start + charMatch[0].length;
+            push("str", src.slice(i, j));
+            i = j;
+            continue;
+          }
+          const lifeMatch = /^'[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i));
+          if (lifeMatch) {
+            push("lifetime", lifeMatch[0]);
+            i += lifeMatch[0].length;
+            continue;
+          }
+        }
+
+        // Numbers
+        if (/[0-9]/.test(ch)) {
+          const numMatch = /^(?:0x[0-9a-fA-F_]+|0b[01_]+|0o[0-7_]+|[0-9][0-9_]*(?:\.[0-9_]+)?(?:[eE][+-]?[0-9_]+)?)(?:[iu](?:8|16|32|64|128|size)|f(?:32|64))?/.exec(src.slice(i));
+          if (numMatch) {
+            push("num", numMatch[0]);
+            i += numMatch[0].length;
+            continue;
+          }
+        }
+
+        // Identifiers, keywords, macros, types
+        if (/[A-Za-z_]/.test(ch)) {
+          let j = i + 1;
+          while (j < n && /[A-Za-z0-9_]/.test(src[j])) j++;
+          const word = src.slice(i, j);
+          if (src[j] === "!") {
+            push("macro", word + "!");
+            i = j + 1;
+            expectFnName = false;
+            continue;
+          }
+          if (expectFnName) {
+            push("fn", word);
+            expectFnName = false;
+          } else if (RUST_KEYWORDS.has(word)) {
+            push("kw", word);
+            expectFnName = (word === "fn");
+          } else if (RUST_BUILTINS.has(word) || /^[A-Z][A-Za-z0-9_]*$/.test(word)) {
+            push("type", word);
+          } else {
+            push("plain", word);
+          }
+          i = j;
+          continue;
+        }
+
+        // Operators & punctuation
+        if (/[+\-*/%=!<>&|^~?:;.,()[\]{}@]/.test(ch)) {
+          push("op", ch);
+          i++;
+          if (ch !== " " && ch !== "\t") expectFnName = false;
+          continue;
+        }
+
+        push("plain", ch);
+        i++;
+      }
+      return tokens;
+    }
+
+    const PY_KEYWORDS = new Set([
+      "False", "None", "True", "and", "as", "assert", "async", "await", "break",
+      "class", "continue", "def", "del", "elif", "else", "except", "finally",
+      "for", "from", "global", "if", "import", "in", "is", "lambda", "match",
+      "case", "nonlocal", "not", "or", "pass", "raise", "return", "try",
+      "while", "with", "yield"
+    ]);
+    const PY_BUILTINS = new Set([
+      "int", "str", "bool", "float", "bytes", "list", "dict", "set", "tuple",
+      "frozenset", "len", "range", "enumerate", "sorted", "reversed", "min",
+      "max", "all", "any", "sum", "print", "isinstance", "issubclass", "zip",
+      "map", "filter", "abs", "round", "type", "object", "Exception",
+      "ValueError", "TypeError", "KeyError", "IndexError", "RuntimeError",
+      "unittest", "dataclass", "field", "Enum", "self", "cls"
+    ]);
+
+    function tokenizePython(src) {
+      const tokens = [];
+      let i = 0;
+      const n = src.length;
+      let expectDefName = false;
+      const push = (type, text) => {
+        if (text) tokens.push({ type, text });
+      };
+
+      while (i < n) {
+        const ch = src[i];
+
+        if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
+          let j = i + 1;
+          while (j < n && (src[j] === " " || src[j] === "\t" || src[j] === "\n" || src[j] === "\r")) j++;
+          push("plain", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Comment
+        if (ch === "#") {
+          let j = i + 1;
+          while (j < n && src[j] !== "\n") j++;
+          push("comment", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Decorator
+        if (ch === "@") {
+          const decMatch = /^@[A-Za-z_][A-Za-z0-9_.]*/.exec(src.slice(i));
+          if (decMatch) {
+            push("attr", decMatch[0]);
+            i += decMatch[0].length;
+            continue;
+          }
+        }
+
+        // Strings (prefixed or plain, triple or single)
+        const strPrefix = /^(?:[fFrRbBuU]{0,2})("""|'''|"|')/.exec(src.slice(i));
+        if (strPrefix) {
+          const quote = strPrefix[1];
+          const isRaw = /[rR]/.test(strPrefix[0].slice(0, strPrefix[0].length - quote.length));
+          let j = i + strPrefix[0].length;
+          if (quote.length === 3) {
+            while (j < n) {
+              if (!isRaw && src[j] === "\\") { j += 2; continue; }
+              if (src.startsWith(quote, j)) { j += 3; break; }
+              j++;
+            }
+          } else {
+            while (j < n) {
+              if (!isRaw && src[j] === "\\") { j += 2; continue; }
+              if (src[j] === quote || src[j] === "\n") {
+                if (src[j] === quote) j++;
+                break;
+              }
+              j++;
+            }
+          }
+          push("str", src.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Numbers
+        if (/[0-9]/.test(ch)) {
+          const numMatch = /^(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*(?:\.[0-9_]+)?(?:[eE][+-]?[0-9_]+)?)[jJ]?/.exec(src.slice(i));
+          if (numMatch) {
+            push("num", numMatch[0]);
+            i += numMatch[0].length;
+            continue;
+          }
+        }
+
+        // Identifiers
+        if (/[A-Za-z_]/.test(ch)) {
+          let j = i + 1;
+          while (j < n && /[A-Za-z0-9_]/.test(src[j])) j++;
+          const word = src.slice(i, j);
+          if (expectDefName) {
+            push("fn", word);
+            expectDefName = false;
+          } else if (PY_KEYWORDS.has(word)) {
+            push("kw", word);
+            expectDefName = (word === "def" || word === "class");
+          } else if (PY_BUILTINS.has(word) || /^[A-Z][A-Za-z0-9_]*$/.test(word)) {
+            push("type", word);
+          } else {
+            push("plain", word);
+          }
+          i = j;
+          continue;
+        }
+
+        if (/[+\-*/%=!<>&|^~.:,;()[\]{}@]/.test(ch)) {
+          push("op", ch);
+          i++;
+          expectDefName = false;
+          continue;
+        }
+
+        push("plain", ch);
+        i++;
+      }
+      return tokens;
+    }
+
+    function tokenizeShell(src) {
+      const lines = src.split("\n");
+      const tokens = [];
+      lines.forEach((line, idx) => {
+        const m = /^(\s*)(#.*)$/.exec(line);
+        if (m) {
+          if (m[1]) tokens.push({ type: "plain", text: m[1] });
+          tokens.push({ type: "comment", text: m[2] });
+        } else {
+          const parts = line.split(/("[^"]*"|\s+--?[A-Za-z0-9_-]+)/g);
+          parts.forEach((part, pIdx) => {
+            if (!part) return;
+            if (part.startsWith('"')) tokens.push({ type: "str", text: part });
+            else if (/^\s+--?/.test(part)) tokens.push({ type: "attr", text: part });
+            else if (pIdx === 0) {
+              const firstWord = /^(\s*)(\S+)(.*)$/.exec(part);
+              if (firstWord) {
+                tokens.push({ type: "plain", text: firstWord[1] });
+                tokens.push({ type: "kw", text: firstWord[2] });
+                tokens.push({ type: "plain", text: firstWord[3] });
+              } else {
+                tokens.push({ type: "plain", text: part });
+              }
+            } else {
+              tokens.push({ type: "plain", text: part });
+            }
+          });
+        }
+        if (idx < lines.length - 1) tokens.push({ type: "plain", text: "\n" });
+      });
+      return tokens;
+    }
+
+    function tokensToHtmlLines(tokens) {
+      const lines = [""];
+      for (const tok of tokens) {
+        const cls = tok.type && tok.type !== "plain" ? `tok-${tok.type}` : "";
+        const segs = tok.text.split("\n");
+        segs.forEach((seg, idx) => {
+          if (idx > 0) lines.push("");
+          if (!seg) return;
+          const esc = escapeHtml(seg);
+          lines[lines.length - 1] += cls ? `<span class="${cls}">${esc}</span>` : esc;
+        });
+      }
+      return lines;
+    }
+
+    function highlightCodeHtml(src, lang) {
+      const l = (lang || "").toLowerCase();
+      let tokens;
+      if (l === "rs" || l === "rust") tokens = tokenizeRust(src);
+      else if (l === "py" || l === "python") tokens = tokenizePython(src);
+      else if (l === "sh" || l === "bash" || l === "shell") tokens = tokenizeShell(src);
+      else return escapeHtml(src);
+      return tokensToHtmlLines(tokens).join("\n");
+    }
+
+    function renderSourceView(path, src, lineAnchor) {
+      const ext = path.endsWith(".rs") ? "rs" : "py";
+      const langLabel = ext === "rs" ? "Rust" : "Python";
+      const tokens = ext === "rs" ? tokenizeRust(src) : tokenizePython(src);
+      const htmlLines = tokensToHtmlLines(tokens);
+      const rows = htmlLines.map((lineHtml, idx) => {
+        const ln = idx + 1;
+        const hl = lineAnchor === `L${ln}` ? " class=\"line-hl\"" : "";
+        return `<tr id="L${ln}"${hl}><td class="ln" data-line="${ln}">${ln}</td><td class="lc">${lineHtml || " "}</td></tr>`;
+      }).join("");
+
+      return `
+        <div class="code-shell">
+          <div class="code-meta">
+            <span><strong>${langLabel}</strong> · ${htmlLines.length} lines · ${src.length} chars</span>
+            <span>Click a line number to highlight</span>
+          </div>
+          <div class="code-scroll">
+            <table class="code-table"><tbody>${rows}</tbody></table>
+          </div>
+        </div>`;
+    }
+
+    // --- Zero-Dependency GitHub-Flavored Markdown Renderer ---
+    function renderInline(text) {
+      let out = "";
+      let i = 0;
+      const n = text.length;
+      while (i < n) {
+        // Inline code `...`
+        if (text[i] === "`") {
+          const end = text.indexOf("`", i + 1);
+          if (end !== -1) {
+            out += `<code>${escapeHtml(text.slice(i + 1, end))}</code>`;
+            i = end + 1;
+            continue;
+          }
+        }
+        // Markdown link [label](url)
+        if (text[i] === "[") {
+          const linkMatch = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(text.slice(i));
+          if (linkMatch) {
+            const labelHtml = renderInline(linkMatch[1]);
+            const rawHref = linkMatch[2];
+            const isExt = /^https?:\/\//i.test(rawHref);
+            const attrs = isExt
+              ? ` href="${escapeHtml(rawHref)}" target="_blank" rel="noopener noreferrer"`
+              : ` href="${escapeHtml(rawHref)}" data-doc-link="1"`;
+            out += `<a${attrs}>${labelHtml}</a>`;
+            i += linkMatch[0].length;
+            continue;
+          }
+        }
+        // Bold **...**
+        if (text.startsWith("**", i)) {
+          const end = text.indexOf("**", i + 2);
+          if (end !== -1) {
+            out += `<strong>${renderInline(text.slice(i + 2, end))}</strong>`;
+            i = end + 2;
+            continue;
+          }
+        }
+        // Italic *...*
+        if (text[i] === "*" && text[i + 1] !== "*" && text[i + 1] !== " ") {
+          const end = text.indexOf("*", i + 1);
+          if (end !== -1 && end > i + 1 && text[end - 1] !== " ") {
+            out += `<em>${renderInline(text.slice(i + 1, end))}</em>`;
+            i = end + 1;
+            continue;
+          }
+        }
+        // Word-bounded underscore italic _..._ (keeps snake_case intact)
+        if (text[i] === "_" && (i === 0 || /[\s(]/.test(text[i - 1]))) {
+          const endMatch = /^_([^_\n]+?)_(?=$|[\s.,;:!?)]|$)/.exec(text.slice(i));
+          if (endMatch) {
+            out += `<em>${renderInline(endMatch[1])}</em>`;
+            i += endMatch[0].length;
+            continue;
+          }
+        }
+        out += escapeHtml(text[i]);
+        i++;
+      }
+      return out;
+    }
+
+    function splitTableRow(line) {
+      let s = line.trim();
+      if (s.startsWith("|")) s = s.slice(1);
+      if (s.endsWith("|")) s = s.slice(0, -1);
+      return s.split("|").map((c) => c.trim());
+    }
+
+    function renderMarkdown(md) {
+      const lines = md.replace(/\r\n?/g, "\n").split("\n");
+      const out = [];
+      let i = 0;
+
+      while (i < lines.length) {
+        const line = lines[i];
+
+        if (!line.trim()) { i++; continue; }
+
+        // Fenced code block ```lang
+        const fence = /^```([^\n]*)$/.exec(line.trim());
+        if (fence) {
+          const lang = fence[1].trim();
+          const codeLines = [];
+          i++;
+          while (i < lines.length && !lines[i].trim().startsWith("```")) {
+            codeLines.push(lines[i]);
+            i++;
+          }
+          if (i < lines.length) i++;
+          const bodyHtml = highlightCodeHtml(codeLines.join("\n"), lang);
+          out.push(`<pre><code>${bodyHtml}</code></pre>`);
+          continue;
+        }
+
+        // Heading # .. ####
+        const heading = /^(#{1,4})\s+(.+?)\s*$/.exec(line);
+        if (heading) {
+          const lvl = heading[1].length;
+          const id = slugify(heading[2]);
+          out.push(`<h${lvl} id="${escapeHtml(id)}">${renderInline(heading[2])}</h${lvl}>`);
+          i++;
+          continue;
+        }
+
+        // Horizontal rule
+        if (/^\s*---+\s*$/.test(line)) {
+          out.push("<hr>");
+          i++;
+          continue;
+        }
+
+        // GFM table
+        if (
+          line.includes("|") &&
+          i + 1 < lines.length &&
+          /^\s*\|?\s*:?-{3,}:?(?:\s*\|\s*:?-{3,}:?)*\s*\|?\s*$/.test(lines[i + 1])
+        ) {
+          const headers = splitTableRow(line);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+            rows.push(splitTableRow(lines[i]));
+            i++;
+          }
+          const ths = headers.map((h) => `<th>${renderInline(h)}</th>`).join("");
+          const trs = rows
+            .map((r) => `<tr>${r.map((c) => `<td>${renderInline(c)}</td>`).join("")}</tr>`)
+            .join("");
+          out.push(`<div class="table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`);
+          continue;
+        }
+
+        // Blockquote
+        if (line.trim().startsWith(">")) {
+          const quoteLines = [];
+          while (i < lines.length && lines[i].trim().startsWith(">")) {
+            quoteLines.push(lines[i].trim().replace(/^>\s?/, ""));
+            i++;
+          }
+          out.push(`<blockquote>${renderInline(quoteLines.join(" "))}</blockquote>`);
+          continue;
+        }
+
+        // Unordered list
+        if (/^\s*[-*]\s+/.test(line)) {
+          const items = [];
+          while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+            items.push(`<li>${renderInline(lines[i].replace(/^\s*[-*]\s+/, ""))}</li>`);
+            i++;
+          }
+          out.push(`<ul>${items.join("")}</ul>`);
+          continue;
+        }
+
+        // Ordered list
+        if (/^\s*\d+\.\s+/.test(line)) {
+          const items = [];
+          while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+            items.push(`<li>${renderInline(lines[i].replace(/^\s*\d+\.\s+/, ""))}</li>`);
+            i++;
+          }
+          out.push(`<ol>${items.join("")}</ol>`);
+          continue;
+        }
+
+        // Paragraph
+        const para = [];
+        while (
+          i < lines.length &&
+          lines[i].trim() &&
+          !/^(#{1,4}\s+|```|>\s?|\s*[-*]\s+|\s*\d+\.\s+|\s*---+\s*$)/.test(lines[i]) &&
+          !(lines[i].includes("|") && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1]))
+        ) {
+          para.push(lines[i].trim());
+          i++;
+        }
+        out.push(`<p>${renderInline(para.join(" "))}</p>`);
+      }
+
+      return `<div class="md-body">${out.join("\n")}</div>`;
+    }
+
+    // --- Relative Path Resolution & Routing ---
+    function resolveRepoPath(href, basePath) {
+      const baseUrl = "https://repo.local/" + (basePath || "");
+      const resolved = new URL(href, baseUrl);
+      const path = resolved.pathname.replace(/^\/+/, "");
+      const hash = resolved.hash.replace(/^#/, "");
+      return { path, hash };
+    }
+
+    async function fetchText(path) {
+      if (fileCache.has(path)) return fileCache.get(path);
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${path}`);
+      const text = await res.text();
+      fileCache.set(path, text);
+      return text;
+    }
+
+    function updateTabs(path) {
+      const exMatch = /^examples\/([^/]+)\/([^/]+)$/.exec(path);
+      if (!exMatch) {
+        viewerTabsEl.hidden = true;
+        return;
+      }
+      const [, slug, file] = exMatch;
+      viewerTabsEl.hidden = false;
+      for (const btn of viewerTabsEl.querySelectorAll(".tab-btn")) {
+        const f = btn.dataset.file;
+        btn.classList.toggle("active", f === file);
+        btn.onclick = () => {
+          location.hash = `#/examples/${slug}/${f}`;
+        };
+      }
+    }
+
+    function scrollToFragment(hash) {
+      if (!hash) {
+        window.scrollTo({ top: 0, behavior: "auto" });
+        return;
+      }
+      const target = document.getElementById(hash) || viewerContentEl.querySelector(`[id="${CSS.escape(hash)}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function showCatalog(sectionHash) {
+      currentDocPath = "";
+      currentRawText = "";
+      catalogView.hidden = false;
+      viewerView.hidden = true;
+      document.title = "The Dragon Book in Rust and Python";
+      if (sectionHash && SECTION_IDS.includes(sectionHash)) {
+        document.getElementById(sectionHash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      }
+    }
+
+    async function showDocument(path, fragHash) {
+      currentDocPath = path;
+      catalogView.hidden = true;
+      viewerView.hidden = false;
+      viewerPathEl.textContent = path;
+      rawLink.href = path;
+      updateTabs(path);
+
+      const exMatch = /^examples\/([^/]+)\//.exec(path);
+      const slug = exMatch ? exMatch[1] : "";
+      buildSidebar(slug, path);
+
+      viewerContentEl.innerHTML = `<div class="status-box">Loading <code>${escapeHtml(path)}</code>...</div>`;
+      try {
+        const text = await fetchText(path);
+        if (currentDocPath !== path) return;
+        currentRawText = text;
+        if (path.endsWith(".md")) {
+          viewerContentEl.innerHTML = renderMarkdown(text);
+          const h1 = viewerContentEl.querySelector("h1")?.textContent?.trim();
+          document.title = h1 ? `${h1} · Dragon Book` : path;
+        } else {
+          viewerContentEl.innerHTML = renderSourceView(path, text, fragHash);
+          document.title = `${path} · Dragon Book`;
+        }
+        scrollToFragment(fragHash);
+      } catch (err) {
+        const isFileProto = location.protocol === "file:";
+        viewerContentEl.innerHTML = `
+          <div class="status-box">
+            <p><strong>Unable to fetch <code>${escapeHtml(path)}</code> directly.</strong></p>
+            <p>${escapeHtml(String(err))}</p>
+            ${isFileProto
+              ? `<p>Browsers block <code>fetch()</code> across local <code>file://</code> URLs. Run <code>python3 -m http.server</code> in the repository root and open <code>http://localhost:8000/</code>, or open the <a class="raw-link" href="${escapeHtml(path)}" target="_blank" rel="noopener noreferrer">raw file</a>.</p>`
+              : `<p><a class="raw-link" href="${escapeHtml(path)}" target="_blank" rel="noopener noreferrer">Open raw file</a></p>`}
+          </div>`;
+      }
+    }
+
+    function parseRoute() {
+      const h = location.hash || "";
+      if (!h || h === "#" || h === "#/") {
+        return { mode: "catalog", hash: "" };
+      }
+      if (h.startsWith("#/")) {
+        const rest = h.slice(2);
+        const hashIdx = rest.indexOf("#");
+        const path = hashIdx === -1 ? rest : rest.slice(0, hashIdx);
+        const frag = hashIdx === -1 ? "" : rest.slice(hashIdx + 1);
+        if (!path || path === "index.html") return { mode: "catalog", hash: frag };
+        return { mode: "doc", path, frag };
+      }
+      const raw = h.slice(1);
+      if (SECTION_IDS.includes(raw)) return { mode: "catalog", hash: raw };
+      if (/^(?:README\.md|examples\/[^#]+\.(?:md|rs|py))$/.test(raw)) {
+        return { mode: "doc", path: raw, frag: "" };
+      }
+      if (currentDocPath) return { mode: "same-doc-anchor", hash: raw };
+      return { mode: "catalog", hash: raw };
+    }
+
+    function applyRoute() {
+      const r = parseRoute();
+      if (r.mode === "catalog") showCatalog(r.hash);
+      else if (r.mode === "doc") showDocument(r.path, r.frag);
+      else if (r.mode === "same-doc-anchor") scrollToFragment(r.hash);
+    }
+
+    document.addEventListener("click", (e) => {
+      // Line-number click in source viewer
+      const lnCell = e.target.closest(".ln[data-line]");
+      if (lnCell && currentDocPath) {
+        const ln = lnCell.dataset.line;
+        for (const tr of viewerContentEl.querySelectorAll("tr.line-hl")) {
+          tr.classList.remove("line-hl");
+        }
+        lnCell.parentElement?.classList.add("line-hl");
+        history.replaceState(null, "", `#/${currentDocPath}#L${ln}`);
+        return;
+      }
+
+      const link = e.target.closest("a[href]");
+      if (!link) return;
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (link.classList.contains("raw-link") || link.target === "_blank") return;
+
+      const href = link.getAttribute("href");
+      if (!href || /^https?:\/\//i.test(href) || href.startsWith("mailto:")) return;
+
+      if (href.startsWith("#")) {
+        if (href === "#" || href === "#/") {
+          e.preventDefault();
+          location.hash = "#/";
+        } else if (href.startsWith("#/")) {
+          return; // browser updates location.hash -> hashchange
+        } else if (currentDocPath && !SECTION_IDS.includes(href.slice(1))) {
+          e.preventDefault();
+          scrollToFragment(href.slice(1));
+        }
+        return;
+      }
+
+      const base = link.dataset.docLink ? currentDocPath : "";
+      const { path, hash } = resolveRepoPath(href, base);
+      if (path === "index.html" || path === "") {
+        e.preventDefault();
+        location.hash = hash ? `#${hash}` : "#/";
+        return;
+      }
+      if (/\.(md|rs|py)$/i.test(path)) {
+        e.preventDefault();
+        location.hash = `#/${path}${hash ? "#" + hash : ""}`;
+      }
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      if (!currentRawText) return;
+      try {
+        await navigator.clipboard.writeText(currentRawText);
+        const orig = copyBtn.textContent;
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => { copyBtn.textContent = orig; }, 1400);
+      } catch {
+        copyBtn.textContent = "Copy failed";
+        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1400);
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag !== "INPUT" && tag !== "TEXTAREA") {
+          e.preventDefault();
+          if (!catalogView.hidden) catalogSearchEl.focus();
+          else sidebarFilterEl.focus();
+        }
+      } else if (e.key === "Escape") {
+        if (!catalogView.hidden && catalogSearchEl.value) {
+          catalogSearchEl.value = "";
+          filterCatalog("");
+        } else if (!viewerView.hidden && document.activeElement === sidebarFilterEl && sidebarFilterEl.value) {
+          sidebarFilterEl.value = "";
+          const m = /^examples\/([^/]+)\//.exec(currentDocPath);
+          buildSidebar(m ? m[1] : "", currentDocPath);
+        }
+      }
+    });
+
+    window.addEventListener("hashchange", applyRoute);
+    applyRoute();
+  })();
+  </script>
 </body>
 </html>
