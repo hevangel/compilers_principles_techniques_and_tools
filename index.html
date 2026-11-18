@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="51 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="53 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,12 +214,12 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (51)</a>
+        <a class="btn" href="#/">Catalog (53)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">51 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">53 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -236,10 +236,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 51 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 53 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 51 of 51 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 53 of 53 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -297,11 +297,11 @@ python3 -m unittest examples/*/main.py</code></pre>
             <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (<code>LL(1)</code> top-down and <code>SLR/LALR/LR(1)</code> bottom-up) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
           </div>
           <div class="study-block">
-            <h3>How the 10 examples fit together</h3>
+            <h3>How the 12 examples fit together</h3>
             <ul>
-              <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code>.</li>
+              <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code> → <code>lex_generator</code> (<code>.l</code> DSL).</li>
               <li><strong>Top-down parsing:</strong> <code>grammar_rewrite</code> (remove left recursion) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
-              <li><strong>Bottom-up &amp; recovery:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>recovery</code>.</li>
+              <li><strong>Bottom-up &amp; generators:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>recovery</code>.</li>
             </ul>
           </div>
         </div>
@@ -346,6 +346,16 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>3</dd>
           </dl>
           <p><a href="examples/dfa_minimize/main.rs">Rust source</a> · <a href="examples/dfa_minimize/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/lex_generator/README.md">Lex-Style Scanner Generator (<code>.l</code> DSL Compiler)</a></h3>
+          <p>Compile multi-pattern <code>.l</code> rules with macro expansion, rule priority, and trailing-context <code>/</code> lookahead into one DFA.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3</dd>
+            <dt>1986 Red</dt><dd>3 (§3.5, §3.8)</dd>
+            <dt>2006 Purple</dt><dd>3 (§3.5, §3.8)</dd>
+          </dl>
+          <p><a href="examples/lex_generator/main.rs">Rust source</a> · <a href="examples/lex_generator/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/grammar_rewrite/README.md">Grammar Rewriting: Left Recursion &amp; Factoring</a></h3>
@@ -396,6 +406,16 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
           <p><a href="examples/precedence_parse/main.rs">Rust source</a> · <a href="examples/precedence_parse/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/yacc_generator/README.md">Yacc-Style Parser Generator (<code>.y</code> DSL Compiler)</a></h3>
+          <p>Compile <code>.y</code> grammars with <code>%left</code>/<code>%right</code>/<code>%nonassoc</code>, <code>%prec</code>, and <code>{ $1 }</code> semantic actions into resolved LALR(1) tables.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5–6, 8</dd>
+            <dt>1986 Red</dt><dd>4 (§4.8–4.9)</dd>
+            <dt>2006 Purple</dt><dd>4 (§4.9)</dd>
+          </dl>
+          <p><a href="examples/yacc_generator/main.rs">Rust source</a> · <a href="examples/yacc_generator/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/recovery/README.md">Panic-mode recovery</a></h3>
@@ -905,11 +925,11 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="coverage-gaps" aria-labelledby="coverage-gaps-title">
       <h2 id="coverage-gaps-title">Coverage gaps</h2>
-      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.</p>
+      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators and <code>Appendix A</code> front-end architectures are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, and <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>.</p>
       <ul>
-        <li><strong>Full-language generator DSLs.</strong> Standalone <code>.l</code>/<code>.y</code> file compilers (full Lex/Flex and Yacc/Bison parser/scanner generator DSLs) remain outside this collection; the front-end architectures in <code>Appendix A</code> are covered in self-contained form by <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a> (1986 Pascal subset), <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a> (2006 structured block-scoped front end), and <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>.</li>
         <li><strong>Global trace/superblock scheduling.</strong> Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (<code>§10.4</code>) out of scope.</li>
         <li><strong>Historical survey chapters.</strong> Compiler history and architectural surveys (<code>1977 Green</code> Ch. 1–2 language survey and Appendix B; <code>1986 Red</code> Ch. 11–12 historical compiler notes) have no standalone demos.</li>
+        <li><strong>External C-source emission.</strong> Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone <code>.c</code>/<code>.h</code> toolchain files or full POSIX <code>yacc</code>/<code>flex</code> start-condition ecosystems.</li>
       </ul>
     </section>
     </div>

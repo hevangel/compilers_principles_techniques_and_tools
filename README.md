@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-51 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+53 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -47,11 +47,13 @@ Scanning groups characters into tokens, such as names and operators. Parsing che
 | [Regex to Thompson NFA and Direct DFA](examples/regex_automata/README.md) | 3 | 3 | 3 |
 | [Epsilon-NFA to DFA](examples/subset_dfa/README.md) | 3 | 3 | 3 |
 | [DFA State Minimization](examples/dfa_minimize/README.md) | 3 | 3 | 3 |
+| [Lex-Style Scanner Generator (`.l` DSL Compiler)](examples/lex_generator/README.md) | 3 | 3 (§3.5, §3.8) | 3 (§3.5, §3.8) |
 | [Grammar Rewriting: Left Recursion Elimination and Left Factoring](examples/grammar_rewrite/README.md) | 4–5 | 4 | 4 |
 | [FIRST, FOLLOW, and LL(1)](examples/ll1/README.md) | 4–5 | 4 | 4 |
 | [LR(0) items and SLR parsing](examples/slr/README.md) | 5–6 | 4 | 4 |
 | [Canonical LR(1), LALR(1), and Table Compaction](examples/lalr/README.md) | 5–6 | 4 | 4 |
 | [Ambiguous Precedence and Associativity Resolution](examples/precedence_parse/README.md) | 5–6 | 4 (§4.6, §4.8) | 4 |
+| [Yacc-Style Parser Generator (`.y` DSL Compiler)](examples/yacc_generator/README.md) | 5–6, 8 | 4 (§4.8–4.9) | 4 (§4.9) |
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
 
 ### Translation and semantic analysis
@@ -117,11 +119,11 @@ An optimization changes how a program runs while preserving its observable behav
 
 ## Coverage gaps
 
-This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.
+This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The `.l`/`.y` DSL generators and `Appendix A` front-end architectures are covered in self-contained form by [`lex_generator`](examples/lex_generator/README.md), [`yacc_generator`](examples/yacc_generator/README.md), [`pascal_frontend`](examples/pascal_frontend/README.md), [`complete_frontend`](examples/complete_frontend/README.md), and [`tiny_compiler`](examples/tiny_compiler/README.md).
 
-- **Full-language generator DSLs.** Standalone `.l`/`.y` file compilers (full Lex/Flex and Yacc/Bison parser/scanner generator DSLs) remain outside this collection; the front-end architectures in `Appendix A` are covered in self-contained form by [`pascal_frontend`](examples/pascal_frontend/README.md) (1986 Pascal subset), [`complete_frontend`](examples/complete_frontend/README.md) (2006 structured block-scoped front end), and [`tiny_compiler`](examples/tiny_compiler/README.md).
 - **Global trace/superblock scheduling.** Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (`§10.4`) out of scope.
 - **Historical survey chapters.** Compiler history and architectural surveys (`1977 Green` Ch. 1–2 language survey and Appendix B; `1986 Red` Ch. 11–12 historical compiler notes) have no standalone demos.
+- **External C-source emission.** Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone `.c`/`.h` toolchain files or full POSIX `yacc`/`flex` start-condition ecosystems.
 
 ## Checks
 
