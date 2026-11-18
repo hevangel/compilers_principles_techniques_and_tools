@@ -69,4 +69,4 @@ The trace distinguishes both forms of the equality operator. The test checks the
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The scanner uses in-memory ASCII token rules. It stops at the first unsupported character.
+The scanner uses in-memory ASCII token rules and stops at the first unsupported character. For sentinel-based double-buffer streaming across chunk boundaries see [Input Buffering and Sentinels](../input_buffering/README.md), for continued tokenization on malformed inputs see [Lexical Error Handling and Recovery](../lexical_recovery/README.md), and for UTF-8/UAX #31 identifiers and Trojan Source checks see the modern extension [Unicode-Aware Source Lexing](../unicode_lexing/README.md).

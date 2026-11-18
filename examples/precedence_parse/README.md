@@ -71,4 +71,4 @@ The worked trace prints explicit parenthesizations for binary precedence, right-
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The driver resolves conflicts directly on operator/statement stacks instead of generating full LALR(1) conflict states first.
+The driver resolves shift/reduce conflicts directly on operator/statement stacks via `%left`/`%right`/`%nonassoc`/`%prec`-style declarations. For Floyd's classical operator-precedence relation matrix (`<·`, `=·`, `·>`) and precedence functions (`1977` §5.3 / `1986` §4.6), see [Classical Operator-Precedence Parsing](../operator_precedence_parser/README.md); for modern `nud`/`led` binding powers, see [Pratt Parsing and Precedence Climbing](../pratt_parsing/README.md).

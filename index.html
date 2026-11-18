@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="59 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="72 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,16 +214,17 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (59)</a>
+        <a class="btn" href="#/">Catalog (72)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">59 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">72 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books, plus modern front-end parsing extensions. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
         <li><a href="#front-end">Scanning and parsing</a></li>
+        <li><a href="#advanced-parsing">Advanced parsing</a></li>
         <li><a href="#translation">Translation and semantic analysis</a></li>
         <li><a href="#runtime">Runtime and code generation</a></li>
         <li><a href="#optimization">Optimization and program analysis</a></li>
@@ -236,10 +237,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 59 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 72 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 59 of 59 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 72 of 72 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -284,24 +285,24 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="front-end" aria-labelledby="front-end-title">
       <h2 id="front-end-title">Scanning and parsing</h2>
-      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section covers regular expressions, Thompson/direct automata, DFA minimization, grammar rewriting, handwritten recursive-descent and table-driven top-down/bottom-up parsers, ambiguity resolution, and syntax-error recovery.</p>
+      <p>Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit together according to a grammar via derivations, rewriting, handwritten recursive-descent and table-driven <code>LL(1)</code>/<code>SLR</code>/<code>LALR(1)</code>/<code>LR(1)</code> parsers, classical and LR precedence resolution, integrated <code>.l</code>/<code>.y</code> AST pipelines, and table-integrated syntax-error recovery.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 3 &amp; 4: Why split lexical scanning from grammar parsing?</summary>
         <div class="study-grid">
           <div class="study-block">
             <h3>What this chapter is about</h3>
-            <p>Turning raw UTF-8 characters into classified tokens using finite automata, then recognizing nested hierarchical syntax with deterministic top-down (<code>recursive_descent</code>, <code>LL(1)</code>) and bottom-up (<code>SLR</code>, <code>LALR(1)</code>, <code>LR(1)</code>) parsers.</p>
+            <p>Turning raw UTF-8 characters into classified tokens using double-buffered finite automata, compressed DFA tables, and start conditions, then recognizing nested hierarchical syntax with derivations, top-down (<code>recursive_descent</code>, <code>LL(1)</code>) and bottom-up (<code>SLR</code>, <code>LALR(1)</code>, <code>operator_precedence_parser</code>) parsers that build ASTs.</p>
           </div>
           <div class="study-block">
             <h3>The "Why?" question</h3>
-            <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (handwritten recursive descent vs. table-driven <code>LL(1)</code> and <code>LR</code>) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
+            <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (handwritten recursive descent vs. table-driven <code>LL(1)</code> and <code>LR</code>) keeps grammars clean, isolates lexical vs. syntactic recovery, and hands structured ASTs cleanly to Chapter 5 semantic analysis.</p>
           </div>
           <div class="study-block">
-            <h3>How the 14 examples fit together</h3>
+            <h3>How the 22 examples fit together</h3>
             <ul>
-              <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code> → <code>lex_generator</code> (<code>.l</code> DSL).</li>
-              <li><strong>Top-down sequence (§4.3–4.4):</strong> <code>grammar_rewrite</code> → <code>recursive_descent</code> (§4.4.1, scaled up in <code>tiny_compiler</code> &amp; <code>pascal_frontend</code>) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
-              <li><strong>Bottom-up, ASTs &amp; recovery:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>ast_construction</code> (CST vs. AST, spans, visitors, Ch. 5–6) → <code>recovery</code>.</li>
+              <li><strong>Lexers, buffering &amp; automata:</strong> <code>lexer</code> → <code>input_buffering</code> (§3.2) → <code>lexical_recovery</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code> → <code>dfa_optimization</code> (§3.9) → <code>lex_generator</code> (<code>.l</code> DSL) → <code>lexer_modes</code> (<code>%x</code>).</li>
+              <li><strong>Derivations &amp; top-down (§4.1–4.4):</strong> <code>cfg_derivations</code> → <code>grammar_rewrite</code> → <code>recursive_descent</code> (§4.4.1, scaled up in <code>tiny_compiler</code> &amp; <code>pascal_frontend</code>) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
+              <li><strong>Bottom-up, ASTs &amp; recovery:</strong> <code>slr</code> → <code>lalr</code> → <code>operator_precedence_parser</code> (1977 §5.3 / 1986 §4.6) → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>ast_construction</code> → <code>lex_yacc_ast</code> (<code>.l</code>+<code>.y</code> AST) → <code>recovery</code> → <code>parser_error_recovery</code>.</li>
             </ul>
           </div>
         </div>
@@ -316,6 +317,26 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>2–3</dd>
           </dl>
           <p><a href="examples/lexer/main.rs">Rust source</a> · <a href="examples/lexer/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/input_buffering/README.md">Double-Buffer Input Scanning and EOF Sentinels (§3.2)</a></h3>
+          <p>Stream source text through a <code>2 * N</code> buffer pair with sentinel markers, two pointers (<code>lexeme_begin</code>, <code>forward</code>), cross-boundary <code>retract()</code>, and overflow detection.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3 (input buffering)</dd>
+            <dt>1986 Red</dt><dd>3 (§3.2)</dd>
+            <dt>2006 Purple</dt><dd>3 (§3.2)</dd>
+          </dl>
+          <p><a href="examples/input_buffering/main.rs">Rust source</a> · <a href="examples/input_buffering/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/lexical_recovery/README.md">Lexical Error Handling and Panic-Mode Recovery (Ch. 3)</a></h3>
+          <p>Distinguish lexical errors from syntax errors, diagnose bad tokens, unterminated strings/comments, and malformed numbers, and keep scanning cleanly.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3, 11</dd>
+            <dt>1986 Red</dt><dd>3 (§3.1.4)</dd>
+            <dt>2006 Purple</dt><dd>3 (§3.1.4)</dd>
+          </dl>
+          <p><a href="examples/lexical_recovery/main.rs">Rust source</a> · <a href="examples/lexical_recovery/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/regex_automata/README.md">Regex to Thompson NFA and Direct DFA</a></h3>
@@ -348,6 +369,16 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/dfa_minimize/main.rs">Rust source</a> · <a href="examples/dfa_minimize/main.py">Python source</a></p>
         </article></li>
         <li><article>
+          <h3><a href="examples/dfa_optimization/README.md">DFA Optimization: Equivalence Classes, Comb Tables, and Direct-Coded Scanners (§3.9)</a></h3>
+          <p>Compress sparse scanner transition matrices via character equivalence classes and <code>default / base / next / check</code> comb tables alongside a direct-coded scanner.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>3 (§3.9)</dd>
+            <dt>2006 Purple</dt><dd>3 (§3.9)</dd>
+          </dl>
+          <p><a href="examples/dfa_optimization/main.rs">Rust source</a> · <a href="examples/dfa_optimization/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
           <h3><a href="examples/lex_generator/README.md">Lex-Style Scanner Generator (<code>.l</code> DSL Compiler)</a></h3>
           <p>Compile multi-pattern <code>.l</code> rules with macro expansion, rule priority, and trailing-context <code>/</code> lookahead into one DFA.</p>
           <dl aria-label="Related chapters by edition">
@@ -356,6 +387,26 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>3 (§3.5, §3.8)</dd>
           </dl>
           <p><a href="examples/lex_generator/main.rs">Rust source</a> · <a href="examples/lex_generator/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/lexer_modes/README.md">Lexer Start Conditions and Context-Sensitive Modes (Ch. 3 Extension)</a></h3>
+          <p>Tokenize nested block comments, escape-decoded strings with nested <code>${expr}</code> interpolation, and <code>#directive</code> lines with <code>%x</code> start conditions.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3 <em>(related)</em></dd>
+            <dt>1986 Red</dt><dd>3 (§3.5 extension)</dd>
+            <dt>2006 Purple</dt><dd>3 (§3.5 extension)</dd>
+          </dl>
+          <p><a href="examples/lexer_modes/main.rs">Rust source</a> · <a href="examples/lexer_modes/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/cfg_derivations/README.md">Context-Free Grammars, Derivations, Ambiguity, and Limits (Ch. 4)</a></h3>
+          <p>Contrast leftmost vs. rightmost derivations, prove ambiguity by generating multiple distinct parse trees, and contrast CFG <code>{a^n b^n}</code> against non-CFG <code>{a^n b^n c^n}</code>.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>4–5</dd>
+            <dt>1986 Red</dt><dd>4 (§4.1–4.3)</dd>
+            <dt>2006 Purple</dt><dd>4 (§4.1–4.3)</dd>
+          </dl>
+          <p><a href="examples/cfg_derivations/main.rs">Rust source</a> · <a href="examples/cfg_derivations/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/grammar_rewrite/README.md">Grammar Rewriting: Left Recursion &amp; Factoring</a></h3>
@@ -408,6 +459,16 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/lalr/main.rs">Rust source</a> · <a href="examples/lalr/main.py">Python source</a></p>
         </article></li>
         <li><article>
+          <h3><a href="examples/operator_precedence_parser/README.md">Classical Operator-Precedence Parsing (1977 §5.3 / 1986 §4.6)</a></h3>
+          <p>Verify operator-grammar invariants, compute <code>LEADING</code>/<code>TRAILING</code> sets and the <code>&lt;· / =· / ·&gt;</code> relation matrix, derive <code>f/g</code> precedence functions, and reduce prime phrases.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5 (§5.3)</dd>
+            <dt>1986 Red</dt><dd>4 (§4.6)</dd>
+            <dt>2006 Purple</dt><dd>— <em>(superseded by §4.8)</em></dd>
+          </dl>
+          <p><a href="examples/operator_precedence_parser/main.rs">Rust source</a> · <a href="examples/operator_precedence_parser/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
           <h3><a href="examples/precedence_parse/README.md">Ambiguous Precedence and Associativity Resolution</a></h3>
           <p>Resolve shift/reduce ambiguities in expression grammars and dangling-else constructs with precedence tables.</p>
           <dl aria-label="Related chapters by edition">
@@ -438,6 +499,16 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/ast_construction/main.rs">Rust source</a> · <a href="examples/ast_construction/main.py">Python source</a></p>
         </article></li>
         <li><article>
+          <h3><a href="examples/lex_yacc_ast/README.md">Integrated <code>.l</code> + <code>.y</code> Front-End Pipeline Constructing an AST (Ch. 3–5)</a></h3>
+          <p>Wire a compiled <code>.l</code> DFA scanner directly into a compiled <code>.y</code> LALR(1) parser whose actions build a span-annotated AST, run semantic checks, and lower to executed TAC.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>3, 5–7</dd>
+            <dt>1986 Red</dt><dd>3–5</dd>
+            <dt>2006 Purple</dt><dd>3–5</dd>
+          </dl>
+          <p><a href="examples/lex_yacc_ast/main.rs">Rust source</a> · <a href="examples/lex_yacc_ast/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
           <h3><a href="examples/recovery/README.md">Panic-mode recovery</a></h3>
           <p>Report a malformed statement and resume at the next semicolon.</p>
           <dl aria-label="Related chapters by edition">
@@ -446,6 +517,85 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
           <p><a href="examples/recovery/main.rs">Rust source</a> · <a href="examples/recovery/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/parser_error_recovery/README.md">LL(1) Synchronization Sets and LR Error Recovery (Ch. 4)</a></h3>
+          <p>Integrate recovery into LL(1) tables via <code>FOLLOW</code> synchronization sets and virtual delimiter insertion, and into SLR(1) tables via <code>error</code> productions and stack unwinding.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>11</dd>
+            <dt>1986 Red</dt><dd>4 (§4.4, §4.7–4.8)</dd>
+            <dt>2006 Purple</dt><dd>4 (§4.4.5, §4.7–4.8)</dd>
+          </dl>
+          <p><a href="examples/parser_error_recovery/main.rs">Rust source</a> · <a href="examples/parser_error_recovery/main.py">Python source</a></p>
+        </article></li>
+      </ul>
+    </section>
+    <section id="advanced-parsing" aria-labelledby="advanced-parsing-title">
+      <h2 id="advanced-parsing-title">Advanced parsing techniques (modern extensions)</h2>
+      <p>These five standalone demonstrations explore practical post-Dragon-Book front-end parsing and lexing designs—explicitly labeled as modern extensions rather than historical Green (1977), Red (1986), or Purple (2006) textbook chapters.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Beyond Classical LL/LR: How Modern Compilers and IDEs Parse</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this section covers</h3>
+            <p>Practical modern front-end extensions: Pratt binding-power expression parsing, memoized PEG/Packrat grammars (as used in modern CPython), Tomita GLR with GSS/SPPF forests, lossless incremental Green/Red CSTs, and Unicode UAX #31 / Trojan Source security lexing.</p>
+          </div>
+          <div class="study-block">
+            <h3>How to read the edition labels</h3>
+            <p>Each card marks classical editions with a dash (<code>—</code>) and notes the closest related Dragon Book topic (<code>cf. §4.6–4.8</code>) so modern industry techniques remain clearly separated from original 1977–2006 curriculum coverage.</p>
+          </div>
+        </div>
+      </details>
+      <ul class="examples">
+        <li><article>
+          <h3><a href="examples/pratt_parsing/README.md">Pratt Parsing and Precedence Climbing <em>(Modern Extension)</em></a></h3>
+          <p>Parse prefix, infix, postfix, right-associative, and ternary <code>? :</code> operators with <code>(lbp, rbp)</code> binding powers alongside an equivalent precedence-climbing loop.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>— <em>(modern extension; cf. §5.3)</em></dd>
+            <dt>1986 Red</dt><dd>— <em>(modern extension; cf. §4.6)</em></dd>
+            <dt>2006 Purple</dt><dd>— <em>(modern extension; cf. §4.8)</em></dd>
+          </dl>
+          <p><a href="examples/pratt_parsing/main.rs">Rust source</a> · <a href="examples/pratt_parsing/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/peg_packrat/README.md">Parsing Expression Grammars (PEGs) and Packrat Memoization <em>(Modern Extension)</em></a></h3>
+          <p>Contrast ordered choice <code>/</code> and syntactic predicates (<code>&amp;e</code>, <code>!e</code>) with CFGs, recognize non-CFG <code>{a^n b^n c^n}</code>, and eliminate exponential backtracking with memo tables.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>— <em>(modern extension)</em></dd>
+            <dt>1986 Red</dt><dd>— <em>(modern extension)</em></dd>
+            <dt>2006 Purple</dt><dd>— <em>(modern extension)</em></dd>
+          </dl>
+          <p><a href="examples/peg_packrat/main.rs">Rust source</a> · <a href="examples/peg_packrat/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/glr_parsing/README.md">Tomita GLR Parsing, Graph-Structured Stacks, and Parse Forests <em>(Modern Extension)</em></a></h3>
+          <p>Fork and merge LR parser heads on a Graph-Structured Stack (GSS) across unresolved conflicts and share ambiguous derivations inside a Shared Packed Parse Forest (SPPF).</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>— <em>(modern extension; cf. Ch. 5–6)</em></dd>
+            <dt>1986 Red</dt><dd>— <em>(modern extension; cf. §4.7)</em></dd>
+            <dt>2006 Purple</dt><dd>— <em>(modern extension; cf. §4.7–4.8)</em></dd>
+          </dl>
+          <p><a href="examples/glr_parsing/main.rs">Rust source</a> · <a href="examples/glr_parsing/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/incremental_cst/README.md">Concrete Syntax Trees and Incremental Parsing <em>(Modern Extension)</em></a></h3>
+          <p>Build lossless relative-width Green Trees with trivia, compute shifted absolute spans lazily via Red Tree cursors, and reuse unchanged statement subtrees across edits.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>— <em>(modern extension; cf. Ch. 5)</em></dd>
+            <dt>1986 Red</dt><dd>— <em>(modern extension; cf. Ch. 4–5)</em></dd>
+            <dt>2006 Purple</dt><dd>— <em>(modern extension; cf. Ch. 2, 4–5)</em></dd>
+          </dl>
+          <p><a href="examples/incremental_cst/main.rs">Rust source</a> · <a href="examples/incremental_cst/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/unicode_lexing/README.md">Unicode-Aware Source Lexing <em>(Modern Extension)</em></a></h3>
+          <p>Track UTF-8 byte offsets, scalar indices, and display columns simultaneously, scan international identifiers, and flag Trojan Source bidi controls and mixed-script homoglyphs.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>— <em>(modern extension; cf. Ch. 3)</em></dd>
+            <dt>1986 Red</dt><dd>— <em>(modern extension; cf. Ch. 3)</em></dd>
+            <dt>2006 Purple</dt><dd>— <em>(modern extension; cf. Ch. 3)</em></dd>
+          </dl>
+          <p><a href="examples/unicode_lexing/main.rs">Rust source</a> · <a href="examples/unicode_lexing/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
@@ -985,10 +1135,10 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="coverage-gaps" aria-labelledby="coverage-gaps-title">
       <h2 id="coverage-gaps-title">Coverage gaps</h2>
-      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators, <code>Appendix A</code> front-end architectures, and <code>§10.4–10.5</code> instruction-level scheduling techniques are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, <a href="examples/rust_frontend/README.md"><code>rust_frontend</code></a>, <a href="examples/python_frontend/README.md"><code>python_frontend</code></a>, <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>, <a href="examples/trace_schedule/README.md"><code>trace_schedule</code></a>, <a href="examples/hyperblock_predication/README.md"><code>hyperblock_predication</code></a>, and <a href="examples/software_pipeline/README.md"><code>software_pipeline</code></a>.</p>
+      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators, start conditions, integrated <code>.l</code>+<code>.y</code> AST construction, <code>Appendix A</code> front-end architectures, and <code>§10.4–10.5</code> instruction-level scheduling techniques are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/lexer_modes/README.md"><code>lexer_modes</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/lex_yacc_ast/README.md"><code>lex_yacc_ast</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, <a href="examples/rust_frontend/README.md"><code>rust_frontend</code></a>, <a href="examples/python_frontend/README.md"><code>python_frontend</code></a>, <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>, <a href="examples/trace_schedule/README.md"><code>trace_schedule</code></a>, <a href="examples/hyperblock_predication/README.md"><code>hyperblock_predication</code></a>, and <a href="examples/software_pipeline/README.md"><code>software_pipeline</code></a>.</p>
       <ul>
         <li><strong>Historical survey chapters.</strong> Compiler history and architectural surveys (<code>1977 Green</code> Ch. 1–2 language survey and Appendix B; <code>1986 Red</code> Ch. 11–12 historical compiler notes) have no standalone demos.</li>
-        <li><strong>External C-source emission.</strong> Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone <code>.c</code>/<code>.h</code> toolchain files or full POSIX <code>yacc</code>/<code>flex</code> start-condition ecosystems.</li>
+        <li><strong>External C-source emission.</strong> Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables, ASTs, or three-address code interpreters rather than emitting standalone <code>.c</code>/<code>.h</code> toolchain files or wrapping external POSIX <code>flex</code>/<code>bison</code> binaries.</li>
       </ul>
     </section>
     </div>
@@ -1024,7 +1174,7 @@ python3 -m unittest examples/*/main.py</code></pre>
   (() => {
     "use strict";
 
-    const SECTION_IDS = ["start", "front-end", "translation", "runtime", "optimization", "editions", "coverage-gaps"];
+    const SECTION_IDS = ["start", "front-end", "advanced-parsing", "translation", "runtime", "optimization", "editions", "coverage-gaps"];
     const catalogView = document.getElementById("catalog-view");
     const viewerView = document.getElementById("viewer");
     const viewerPathEl = document.getElementById("viewer-path");
@@ -1062,7 +1212,7 @@ python3 -m unittest examples/*/main.py</code></pre>
     // Extract structured catalog metadata directly from existing semantic HTML cards.
     const groups = [];
     const exampleBySlug = new Map();
-    for (const secId of ["start", "front-end", "translation", "runtime", "optimization"]) {
+    for (const secId of ["start", "front-end", "advanced-parsing", "translation", "runtime", "optimization"]) {
       const sec = document.getElementById(secId);
       if (!sec) continue;
       const groupTitle = sec.querySelector("h2")?.textContent?.trim() || secId;

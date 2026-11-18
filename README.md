@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-59 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, follow each core intermediate representation (**tokens → parse tree vs. AST → symbol tables → TAC/SSA → CFG**), or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+72 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, follow each core intermediate representation (**tokens → parse tree vs. AST → symbol tables → TAC/SSA → CFG**), or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -39,24 +39,44 @@ A compiler translates a program from one language into another. Follow one tiny 
 
 ### Scanning and parsing
 
-Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with regular expressions and finite automata, covers grammar transformations, handwritten recursive-descent and table-driven `LL(1)`/`SLR`/`LALR(1)`/`LR(1)` parsers, resolves ambiguities, and shows how to resume after a syntax error.
+Scanning groups characters into tokens, such as names and operators, across input buffers with recovery and context-sensitive modes. Parsing checks how tokens fit a grammar via derivations, top-down rewriting/`recursive_descent`/`LL(1)`, bottom-up `SLR`/`LALR(1)`/classical operator-precedence, `.l`/`.y` AST pipelines, and table-integrated error recovery.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
 | [Tokens and longest match](examples/lexer/README.md) | 3 | 2–3 | 2–3 |
+| [Double-Buffer Input Scanning and EOF Sentinels (§3.2)](examples/input_buffering/README.md) | 3 (input buffering) | 3 (§3.2) | 3 (§3.2) |
+| [Lexical Error Handling and Panic-Mode Recovery (Ch. 3)](examples/lexical_recovery/README.md) | 3, 11 | 3 (§3.1.4) | 3 (§3.1.4) |
 | [Regex to Thompson NFA and Direct DFA](examples/regex_automata/README.md) | 3 | 3 | 3 |
 | [Epsilon-NFA to DFA](examples/subset_dfa/README.md) | 3 | 3 | 3 |
 | [DFA State Minimization](examples/dfa_minimize/README.md) | 3 | 3 | 3 |
+| [DFA Optimization: Equivalence Classes, Comb Tables, and Direct-Coded Scanners (§3.9)](examples/dfa_optimization/README.md) | — | 3 (§3.9) | 3 (§3.9) |
 | [Lex-Style Scanner Generator (`.l` DSL Compiler)](examples/lex_generator/README.md) | 3 | 3 (§3.5, §3.8) | 3 (§3.5, §3.8) |
+| [Lexer Start Conditions and Context-Sensitive Modes (Ch. 3 Extension)](examples/lexer_modes/README.md) | 3 *(related)* | 3 (§3.5 extension) | 3 (§3.5 extension) |
+| [Context-Free Grammars, Derivations, Ambiguity, and Limits (Ch. 4)](examples/cfg_derivations/README.md) | 4–5 | 4 (§4.1–4.3) | 4 (§4.1–4.3) |
 | [Grammar Rewriting: Left Recursion Elimination and Left Factoring](examples/grammar_rewrite/README.md) | 4–5 | 4 | 4 |
 | [Recursive-Descent Parsing (§4.4.1)](examples/recursive_descent/README.md) | 4–5 | 4 (§4.4) | 4 (§4.4.1) |
 | [FIRST, FOLLOW, and LL(1)](examples/ll1/README.md) | 4–5 | 4 | 4 |
 | [LR(0) items and SLR parsing](examples/slr/README.md) | 5–6 | 4 | 4 |
 | [Canonical LR(1), LALR(1), and Table Compaction](examples/lalr/README.md) | 5–6 | 4 | 4 |
+| [Classical Operator-Precedence Parsing (1977 §5.3 / 1986 §4.6)](examples/operator_precedence_parser/README.md) | 5 (§5.3) | 4 (§4.6) | — *(removed; superseded by §4.8 LR precedence)* |
 | [Ambiguous Precedence and Associativity Resolution](examples/precedence_parse/README.md) | 5–6 | 4 (§4.6, §4.8) | 4 |
 | [Yacc-Style Parser Generator (`.y` DSL Compiler)](examples/yacc_generator/README.md) | 5–6, 8 | 4 (§4.8–4.9) | 4 (§4.9) |
 | [Abstract Syntax Tree (AST) Construction (§4.9 → Ch. 5–6)](examples/ast_construction/README.md) | 5–7 | 4–5 (§4.9, §5.2) | 4–6 (§4.9, §5.3, §6.2) |
+| [Integrated `.l` + `.y` Front-End Pipeline Constructing an AST (Ch. 3–5)](examples/lex_yacc_ast/README.md) | 3, 5–7 | 3–5 | 3–5 |
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
+| [LL(1) Synchronization Sets and LR Error Recovery (Ch. 4)](examples/parser_error_recovery/README.md) | 11 | 4 (§4.4, §4.7–4.8) | 4 (§4.4.5, §4.7–4.8) |
+
+### Advanced parsing techniques (modern extensions)
+
+These five examples cover modern post-Dragon-Book front-end parsing and lexing techniques (labeled explicitly as modern extensions rather than historical Green/Red/Purple textbook chapters).
+
+| Example | 1977 Green | 1986 Red | 2006 Purple |
+| --- | --- | --- | --- |
+| [Pratt Parsing and Precedence Climbing *(Modern Extension)*](examples/pratt_parsing/README.md) | — *(modern extension; cf. §5.3)* | — *(modern extension; cf. §4.6)* | — *(modern extension; cf. §4.8)* |
+| [Parsing Expression Grammars (PEGs) and Packrat Memoization *(Modern Extension)*](examples/peg_packrat/README.md) | — *(modern extension)* | — *(modern extension)* | — *(modern extension)* |
+| [Tomita GLR Parsing, Graph-Structured Stacks, and Parse Forests *(Modern Extension)*](examples/glr_parsing/README.md) | — *(modern extension; cf. Ch. 5–6)* | — *(modern extension; cf. §4.7)* | — *(modern extension; cf. §4.7–4.8)* |
+| [Concrete Syntax Trees and Incremental Parsing *(Modern Extension)*](examples/incremental_cst/README.md) | — *(modern extension; cf. Ch. 5)* | — *(modern extension; cf. Ch. 4–5)* | — *(modern extension; cf. Ch. 2, 4–5)* |
+| [Unicode-Aware Source Lexing *(Modern Extension)*](examples/unicode_lexing/README.md) | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* | — *(modern extension; cf. Ch. 3)* |
 
 ### Translation and semantic analysis
 
@@ -125,10 +145,10 @@ An optimization changes how a program runs while preserving its observable behav
 
 ## Coverage gaps
 
-This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The `.l`/`.y` DSL generators, `Appendix A` front-end architectures, and `§10.4–10.5` instruction-level scheduling techniques are covered in self-contained form by [`lex_generator`](examples/lex_generator/README.md), [`yacc_generator`](examples/yacc_generator/README.md), [`pascal_frontend`](examples/pascal_frontend/README.md), [`complete_frontend`](examples/complete_frontend/README.md), [`rust_frontend`](examples/rust_frontend/README.md), [`python_frontend`](examples/python_frontend/README.md), [`tiny_compiler`](examples/tiny_compiler/README.md), [`trace_schedule`](examples/trace_schedule/README.md), [`hyperblock_predication`](examples/hyperblock_predication/README.md), and [`software_pipeline`](examples/software_pipeline/README.md).
+This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The `.l`/`.y` DSL generators, start conditions, integrated `.l`+`.y` AST construction, `Appendix A` front-end architectures, and `§10.4–10.5` instruction-level scheduling techniques are covered in self-contained form by [`lex_generator`](examples/lex_generator/README.md), [`lexer_modes`](examples/lexer_modes/README.md), [`yacc_generator`](examples/yacc_generator/README.md), [`lex_yacc_ast`](examples/lex_yacc_ast/README.md), [`pascal_frontend`](examples/pascal_frontend/README.md), [`complete_frontend`](examples/complete_frontend/README.md), [`rust_frontend`](examples/rust_frontend/README.md), [`python_frontend`](examples/python_frontend/README.md), [`tiny_compiler`](examples/tiny_compiler/README.md), [`trace_schedule`](examples/trace_schedule/README.md), [`hyperblock_predication`](examples/hyperblock_predication/README.md), and [`software_pipeline`](examples/software_pipeline/README.md).
 
 - **Historical survey chapters.** Compiler history and architectural surveys (`1977 Green` Ch. 1–2 language survey and Appendix B; `1986 Red` Ch. 11–12 historical compiler notes) have no standalone demos.
-- **External C-source emission.** Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables or three-address code interpreters rather than emitting standalone `.c`/`.h` toolchain files or full POSIX `yacc`/`flex` start-condition ecosystems.
+- **External C-source emission.** Each DSL generator and front end compiles specs directly into in-memory DFA/LALR(1) tables, ASTs, or three-address code interpreters rather than emitting standalone `.c`/`.h` toolchain files or wrapping external POSIX `flex`/`bison` binaries.
 
 ## Checks
 

@@ -59,4 +59,4 @@ The sample recovers values `[7, 19]` from a mix of valid and invalid statements.
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The language is a sequence of flat `emit N;` statements. Semicolons are always safe synchronization points in this grammar.
+The language here is a flat sequence of `emit N;` statements where `;` is always a safe synchronization point. See [Lexical Error Handling and Recovery](../lexical_recovery/README.md) for lexer-level recovery before parsing, and [LL(1) and LR Parser Error Recovery](../parser_error_recovery/README.md) for `FOLLOW`/synchronization sets, virtual token insertion, and `error` productions integrated directly into LL(1) and SLR(1) tables.

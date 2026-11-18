@@ -54,4 +54,4 @@ Running the demo prints the compiled definition/rule summary, NFA-to-DFA state c
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-This self-contained Lex compiler compiles and executes `.l` specifications directly on printable ASCII + whitespace (`\t`, `\n`) DFAs without emitting external C files or requiring start conditions (`%x`).
+This self-contained Lex compiler compiles and executes `.l` specifications directly on printable ASCII + whitespace (`\t`, `\n`) DFAs without emitting external C files. See [DFA Table Optimization](../dfa_optimization/README.md) for §3.9 character-class and `next/check` table compression, [Context-Sensitive Lexer Modes](../lexer_modes/README.md) for `%x` start conditions, and [Integrated Lex + Yacc AST Pipeline](../lex_yacc_ast/README.md) for wiring a `.l` scanner directly into a `.y` parser that constructs an AST.

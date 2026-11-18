@@ -70,4 +70,4 @@ The worked trace removes indirect left recursion from `S -> A a | b, A -> S d | 
 
 Numbers refer to chapters. Related readings and appendices are marked where applicable. See the [edition guide](../../README.md#edition-guide) for the bibliographic references and chapter coverage.
 
-The rewriter operates purely on CFG productions and does not carry semantic actions across substitutions.
+The rewriter operates purely on CFG productions and does not carry semantic actions across substitutions. For formal leftmost/rightmost derivations and parse-tree ambiguity prior to rewriting, see [CFG Derivations, Parse Trees, and Ambiguity](../cfg_derivations/README.md).
