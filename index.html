@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="58 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="59 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,12 +214,12 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (58)</a>
+        <a class="btn" href="#/">Catalog (59)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">58 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">59 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -236,10 +236,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 58 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 59 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 58 of 58 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 59 of 59 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -297,11 +297,11 @@ python3 -m unittest examples/*/main.py</code></pre>
             <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (handwritten recursive descent vs. table-driven <code>LL(1)</code> and <code>LR</code>) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
           </div>
           <div class="study-block">
-            <h3>How the 13 examples fit together</h3>
+            <h3>How the 14 examples fit together</h3>
             <ul>
               <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code> → <code>lex_generator</code> (<code>.l</code> DSL).</li>
               <li><strong>Top-down sequence (§4.3–4.4):</strong> <code>grammar_rewrite</code> → <code>recursive_descent</code> (§4.4.1, scaled up in <code>tiny_compiler</code> &amp; <code>pascal_frontend</code>) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
-              <li><strong>Bottom-up &amp; generators:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>recovery</code>.</li>
+              <li><strong>Bottom-up, ASTs &amp; recovery:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>ast_construction</code> (CST vs. AST, spans, visitors, Ch. 5–6) → <code>recovery</code>.</li>
             </ul>
           </div>
         </div>
@@ -428,6 +428,16 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/yacc_generator/main.rs">Rust source</a> · <a href="examples/yacc_generator/main.py">Python source</a></p>
         </article></li>
         <li><article>
+          <h3><a href="examples/ast_construction/README.md">Abstract Syntax Tree (AST) Construction (§4.9 → Ch. 5–6)</a></h3>
+          <p>Compare verbose parse trees (CST) with typed ASTs, build identical ASTs from recursive descent and Yacc-style actions, preserve source spans, run visitors, and lower to TAC IR.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>5–7</dd>
+            <dt>1986 Red</dt><dd>4–5 (§4.9, §5.2)</dd>
+            <dt>2006 Purple</dt><dd>4–6 (§4.9, §5.3, §6.2)</dd>
+          </dl>
+          <p><a href="examples/ast_construction/main.rs">Rust source</a> · <a href="examples/ast_construction/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
           <h3><a href="examples/recovery/README.md">Panic-mode recovery</a></h3>
           <p>Report a malformed statement and resume at the next semicolon.</p>
           <dl aria-label="Related chapters by edition">
@@ -441,22 +451,22 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="translation" aria-labelledby="translation-title">
       <h2 id="translation-title">Translation and semantic analysis</h2>
-      <p>Semantic analysis resolves names, infers polymorphic types, handles coercions and overloadings, and computes aligned record and array addresses. Syntax-directed translation turns parse trees into DAGs, SSA graphs, three-address IR, switch dispatch, and backpatched jumps.</p>
+      <p>Each compiler stage transforms one intermediate representation into the next: <strong>tokens</strong> (<a href="examples/lexer/README.md"><code>lexer</code></a>) → <strong>parse tree vs. AST</strong> (<a href="examples/ast_construction/README.md"><code>ast_construction</code></a>) → <strong>symbol tables &amp; attributes</strong> (<a href="examples/scope_types/README.md"><code>scope_types</code></a>, <a href="examples/attributes/README.md"><code>attributes</code></a>) → <strong>expression DAGs, three-address IR &amp; SSA</strong> (<a href="examples/record_ir/README.md"><code>record_ir</code></a>, <a href="examples/ssa/README.md"><code>ssa</code></a>) → <strong>CFGs</strong> (<a href="examples/natural_loops/README.md"><code>natural_loops</code></a>). Semantic analysis resolves names, infers polymorphic types, handles coercions and overloadings, and computes aligned record and array addresses.</p>
       <details class="study-note" open>
-        <summary>Study Note — Chapters 5 &amp; 6: How do we check meaning and turn trees into clean intermediate code?</summary>
+        <summary>Study Note — Chapters 5 &amp; 6: How do we check meaning and turn ASTs into clean intermediate code?</summary>
         <div class="study-grid">
           <div class="study-block">
             <h3>What this chapter is about</h3>
-            <p>Validating rules context-free grammars cannot express (scoping, types, memory alignment) and lowering high-level syntax into Intermediate Representation (IR) such as DAGs, three-address quadruples, and SSA form.</p>
+            <p>Taking the typed <strong>AST</strong> produced in Chapter 4 (<code>ast_construction</code>), validating rules context-free grammars cannot express (scoping, types, memory alignment) with symbol tables and attributes, and lowering into Intermediate Representation (IR) such as DAGs, three-address quadruples, CFGs, and SSA form.</p>
           </div>
           <div class="study-block">
             <h3>The "Why?" question</h3>
-            <p>A parser accepts <code>x = a + b;</code> as valid syntax even if <code>a</code> is undeclared, mixes incompatible types, or indexes a 2D array that the CPU sees only as raw bytes. Syntax-directed attributes, type inference, and one-pass control-flow lowering turn source syntax into an analyzer-friendly IR.</p>
+            <p>A parser accepts <code>x = a + b;</code> as valid syntax even if <code>a</code> is undeclared, mixes incompatible types, or indexes a 2D array that the CPU sees only as raw bytes. Dedicated data structures—ASTs, symbol tables, typed DAGs, three-address IR, and SSA—separate each concern cleanly.</p>
           </div>
           <div class="study-block">
             <h3>How the 16 examples fit together</h3>
             <ul>
-              <li><strong>Attributes &amp; IR graphs:</strong> <code>attributes</code> → <code>sdd_eval</code> → <code>expr_dag</code> → <code>ssa</code>.</li>
+              <li><strong>Attributes &amp; IR graphs (Ch. 5–6):</strong> <code>attributes</code> → <code>sdd_eval</code> → <code>expr_dag</code> → <code>ssa</code> (consuming the AST from <code>ast_construction</code>).</li>
               <li><strong>Names &amp; types:</strong> <code>scope_types</code> → <code>unification</code> → <code>poly_infer</code> → <code>overload_coerce</code>.</li>
               <li><strong>Control flow &amp; layout:</strong> <code>array_layout</code>, <code>record_ir</code>, <code>backpatch</code>, <code>switch_lower</code>.</li>
               <li><strong>Appendix A capstones:</strong> <code>pascal_frontend</code> (1986 Pascal), <code>complete_frontend</code> (2006 Java/C-style), <code>rust_frontend</code> (Rust subset), and <code>python_frontend</code> (Python subset).</li>

@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-58 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+59 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, follow each core intermediate representation (**tokens → parse tree vs. AST → symbol tables → TAC/SSA → CFG**), or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -55,11 +55,12 @@ Scanning groups characters into tokens, such as names and operators. Parsing che
 | [Canonical LR(1), LALR(1), and Table Compaction](examples/lalr/README.md) | 5–6 | 4 | 4 |
 | [Ambiguous Precedence and Associativity Resolution](examples/precedence_parse/README.md) | 5–6 | 4 (§4.6, §4.8) | 4 |
 | [Yacc-Style Parser Generator (`.y` DSL Compiler)](examples/yacc_generator/README.md) | 5–6, 8 | 4 (§4.8–4.9) | 4 (§4.9) |
+| [Abstract Syntax Tree (AST) Construction (§4.9 → Ch. 5–6)](examples/ast_construction/README.md) | 5–7 | 4–5 (§4.9, §5.2) | 4–6 (§4.9, §5.3, §6.2) |
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
 
 ### Translation and semantic analysis
 
-A valid grammatical structure is the starting point for checking what a program means. Semantic analysis resolves names, infers polymorphic types, checks coercions and overloadings, and lays out records and arrays. Translation uses that information to build expression DAGs, SSA graphs, three-address IR, switch dispatch, and short-circuit jumps.
+Each compiler stage transforms one intermediate representation into the next: **tokens** ([`lexer`](examples/lexer/README.md)) → **parse tree vs. AST** ([`ast_construction`](examples/ast_construction/README.md)) → **symbol tables & attributes** ([`scope_types`](examples/scope_types/README.md), [`attributes`](examples/attributes/README.md)) → **expression DAGs, three-address IR & SSA** ([`record_ir`](examples/record_ir/README.md), [`ssa`](examples/ssa/README.md)) → **CFGs** ([`natural_loops`](examples/natural_loops/README.md)). Semantic analysis resolves names, infers polymorphic types, checks coercions and overloadings, and lays out records and arrays before emitting lower-level IR and backpatched jumps.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |

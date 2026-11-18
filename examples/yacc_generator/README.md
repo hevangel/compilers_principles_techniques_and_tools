@@ -17,7 +17,7 @@ Earlier parsing examples study LALR(1) state merging on small conflict-free gram
 
 1. **Concise ambiguous grammars instead of stratified boilerplate:** Writing `expr : expr '+' expr | expr '*' expr | '-' expr %prec UMINUS` is short and readable, even though it produces shift/reduce conflicts on nearly every operator state.
 2. **Declarative disambiguation during LALR(1) table generation:** Comparing each rule's precedence (from `%prec`, or its rightmost terminal) against the lookahead token's `%left`/`%right`/`%nonassoc` tier decides whether an ambiguous state **shifts** (`*` after `+`), **reduces** (`-` before `-`), or emits a **non-associative syntax error** (`1 < 2 < 3`).
-3. **Default Yacc conflict recovery & semantic actions (`$1`, `$3`):** Unannotated shift/reduce conflicts default to **shift**, reduce/reduce conflicts pick the **earliest-listed** production rule, and every reduction pops `k` values from the semantic value stack to run its `{ ... }` action.
+3. **Default Yacc conflict recovery & semantic actions (`$1`, `$3`):** Unannotated shift/reduce conflicts default to **shift**, reduce/reduce conflicts pick the **earliest-listed** production rule, and every reduction pops `k` values from the semantic value stack to run its `{ ... }` action. See [`ast_construction`](../ast_construction/README.md) to build explicit spanned AST nodes from `$N` semantic actions and pass them to Chapters 5–6 semantic checks and Three-Address Code lowering.
 
 ### Precedence & conflict resolution on `x = 2 + 3 * -4; x * 2 + 1`
 

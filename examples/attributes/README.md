@@ -18,7 +18,7 @@ A parser checks whether tokens form a valid syntax tree—such as `Join(Join(Str
 - A purely bottom-up pass (computing only synthesized attributes) can sum the widths (`2 + 5 + 4 = 11`), because a parent's width depends only on its children. However, it does not know the starting `origin` (`10`) passed in from outside.
 - A purely top-down pass (passing only inherited attributes) knows the root's `origin` (`10`), so it can pass `10` to the left child—but it cannot tell the right child where to start until it knows how wide the left child turned out to be.
 
-Combining **inherited** attributes (flowing down/left-to-right from context) and **synthesized** attributes (flowing back up from children) solves both problems in a single traversal.
+Combining **inherited** attributes (flowing down/left-to-right from context) and **synthesized** attributes (flowing back up from children) solves both problems in a single traversal. For how those syntax trees themselves are separated from verbose parse trees and constructed with spans and visitors before entering Chapter 5, see [`ast_construction`](../ast_construction/README.md).
 
 An **attribute** is a piece of information attached to a syntax-tree node. A **synthesized attribute** is computed at the node and returned to its parent. An **inherited attribute** is supplied by the node's surroundings, such as a parent or a sibling. Compilers use these two directions of information flow for tasks like passing scope tables or target addresses down and returning types or generated code fragments up.
 
