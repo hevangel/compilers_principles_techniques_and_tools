@@ -18,7 +18,7 @@ Grammar authors write rules in the way that best matches language meaning—such
 1. **Infinite loop on left recursion:** If `A()` expands `A -> A alpha` by calling `A()` before consuming any terminal, it enters unbounded recursion and overflows the stack. Worse, the recursion can be **indirect** (`S -> A a`, `A -> S d` forms a cycle `S => A a => S d a`).
 2. **Prefix ambiguity with 1-token lookahead:** In `S -> i E t S | i E t S e S`, both productions begin with `i E t S`. With only 1 token of lookahead (`i`), an LL(1) parser cannot see far enough ahead to know whether an `e` (`else`) will follow later.
 
-Two mechanical, language-preserving rewrites fix these issues: **left-recursion elimination** converts left recursion into right-recursive tail rules, and **left factoring** postpones the choice until after the shared prefix has been parsed.
+Two mechanical, language-preserving rewrites fix these issues: **left-recursion elimination** converts left recursion into right-recursive tail rules, and **left factoring** postpones the choice until after the shared prefix has been parsed. Together they make grammars directly executable by both handwritten [`recursive_descent`](../recursive_descent/README.md) (which turns eliminated left recursion into `while` loops) and table-driven [`ll1`](../ll1/README.md) parsers.
 
 ### Two rewriting passes
 

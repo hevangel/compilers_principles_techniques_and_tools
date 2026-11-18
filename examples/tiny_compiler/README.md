@@ -18,7 +18,7 @@ A naive approach to running source text—evaluating characters directly from le
 1. **Operator precedence and grouping:** In `boxes * perbox + 3`, you cannot evaluate left-to-right blindly; if you did `4 * 6 + 3` in a naive text evaluator with `3 + 4 * 6`, you would wrongly compute `(3 + 4) * 6 = 42` instead of `3 + (4 * 6) = 27`.
 2. **Separation of compilation from execution:** Evaluating source text directly mixes syntax checking, variable name lookup, and arithmetic together. If a variable name is misspelled (`emit missing;`) or a parenthesis is unclosed (`emit (3;`), a compiler should reject the program *before* executing anything, and resolve names once into fast integer slot indices rather than re-looking up strings at runtime.
 
-This example solves both problems with a miniature end-to-end **compiler + stack virtual machine (VM)**. `lex` turns characters into typed tokens; a recursive-descent parser enforces grammar rules and operator precedence while emitting **postfix (stack-machine) bytecode** (syntax-directed translation); a compile-time symbol table maps variable names to numbered slots; and `execute` runs the bytecode on an operand stack.
+This example solves both problems with a miniature end-to-end **compiler + stack virtual machine (VM)**. `lex` turns characters into typed tokens; a recursive-descent parser (studied in isolation in [`recursive_descent`](../recursive_descent/README.md)) enforces grammar rules and operator precedence while emitting **postfix (stack-machine) bytecode** (syntax-directed translation); a compile-time symbol table maps variable names to numbered slots; and `execute` runs the bytecode on an operand stack.
 
 ### Follow one statement through the compiler
 

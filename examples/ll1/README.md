@@ -18,7 +18,7 @@ Given a grammar such as balanced brackets `S → [ S ] S | ε`, a top-down parse
 - When the input has `[`, `S` must expand to `[ S ] S`.
 - When the input has `]` (closing an enclosing pair, as in `[ ]`) or `$` (end of input), `S` cannot match `[`, so it *must* take `S → ε`. How does the parser know which tokens legitimately mean "stop expanding `S` here" versus "syntax error" (like an extra unmatched `]`)?
 
-**LL(1) predictive parsing** solves this deterministically in $O(n)$ time with zero backtracking by precomputing **FIRST** (what terminals can *start* a phrase, plus whether it is **nullable**) and **FOLLOW** (what terminals can legally appear *immediately after* a nonterminal).
+**LL(1) predictive parsing** solves this deterministically in `O(n)` time with zero backtracking by precomputing **FIRST** (what terminals can *start* a phrase, plus whether it is **nullable**) and **FOLLOW** (what terminals can legally appear *immediately after* a nonterminal). See [`recursive_descent`](../recursive_descent/README.md) for the handwritten function-per-nonterminal counterpart that replaces this explicit stack and table with direct calls, `while` loops, and multi-token `peek(1)` lookahead.
 
 ### Build the table from the grammar
 

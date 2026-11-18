@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="57 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="58 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,12 +214,12 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (57)</a>
+        <a class="btn" href="#/">Catalog (58)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">57 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">58 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -236,10 +236,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 57 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 58 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 57 of 57 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 58 of 58 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -284,23 +284,23 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="front-end" aria-labelledby="front-end-title">
       <h2 id="front-end-title">Scanning and parsing</h2>
-      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section covers regular expressions, Thompson/direct automata, DFA minimization, grammar rewriting, top-down and bottom-up parsers, ambiguity resolution, and syntax-error recovery.</p>
+      <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section covers regular expressions, Thompson/direct automata, DFA minimization, grammar rewriting, handwritten recursive-descent and table-driven top-down/bottom-up parsers, ambiguity resolution, and syntax-error recovery.</p>
       <details class="study-note" open>
         <summary>Study Note — Chapters 3 &amp; 4: Why split lexical scanning from grammar parsing?</summary>
         <div class="study-grid">
           <div class="study-block">
             <h3>What this chapter is about</h3>
-            <p>Turning raw UTF-8 characters into classified tokens using finite automata, then recognizing nested hierarchical syntax with linear-time deterministic parsers.</p>
+            <p>Turning raw UTF-8 characters into classified tokens using finite automata, then recognizing nested hierarchical syntax with deterministic top-down (<code>recursive_descent</code>, <code>LL(1)</code>) and bottom-up (<code>SLR</code>, <code>LALR(1)</code>, <code>LR(1)</code>) parsers.</p>
           </div>
           <div class="study-block">
             <h3>The "Why?" question</h3>
-            <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (<code>LL(1)</code> top-down and <code>SLR/LALR/LR(1)</code> bottom-up) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
+            <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (handwritten recursive descent vs. table-driven <code>LL(1)</code> and <code>LR</code>) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
           </div>
           <div class="study-block">
-            <h3>How the 12 examples fit together</h3>
+            <h3>How the 13 examples fit together</h3>
             <ul>
               <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code> → <code>lex_generator</code> (<code>.l</code> DSL).</li>
-              <li><strong>Top-down parsing:</strong> <code>grammar_rewrite</code> (remove left recursion) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
+              <li><strong>Top-down sequence (§4.3–4.4):</strong> <code>grammar_rewrite</code> → <code>recursive_descent</code> (§4.4.1, scaled up in <code>tiny_compiler</code> &amp; <code>pascal_frontend</code>) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
               <li><strong>Bottom-up &amp; generators:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>yacc_generator</code> (<code>.y</code> DSL) → <code>recovery</code>.</li>
             </ul>
           </div>
@@ -366,6 +366,16 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>4</dd>
           </dl>
           <p><a href="examples/grammar_rewrite/main.rs">Rust source</a> · <a href="examples/grammar_rewrite/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/recursive_descent/README.md">Recursive-Descent Parsing (§4.4.1)</a></h3>
+          <p>Map EBNF rules directly to recursive functions with <code>while</code> loops, <code>LL(2)</code> lookahead, recovery, and depth limits.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>4–5</dd>
+            <dt>1986 Red</dt><dd>4 (§4.4)</dd>
+            <dt>2006 Purple</dt><dd>4 (§4.4.1)</dd>
+          </dl>
+          <p><a href="examples/recursive_descent/main.rs">Rust source</a> · <a href="examples/recursive_descent/main.py">Python source</a></p>
         </article></li>
         <li><article>
           <h3><a href="examples/ll1/README.md">FIRST, FOLLOW, and LL(1)</a></h3>

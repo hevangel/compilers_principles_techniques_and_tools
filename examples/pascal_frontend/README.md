@@ -13,7 +13,7 @@ python3 -m unittest examples/pascal_frontend/main.py
 
 ### Why we need this / What problem this solves
 
-Earlier front-end examples study one mechanism at a time: scanning (`lexer`), recursive-descent parsing (`tiny_compiler`), scope chains (`scope_types`), arrays (`array_layout`), or numeric widening (`overload_coerce`). Real compilers (and the 1986 Red Dragon Book's Appendix A Pascal compiler project) must wire **all of those phases together** into one coherent pipeline:
+Earlier front-end examples study one mechanism at a time: scanning (`lexer`), recursive-descent parsing ([`recursive_descent`](../recursive_descent/README.md), scaled up in [`tiny_compiler`](../tiny_compiler/README.md)), scope chains (`scope_types`), arrays (`array_layout`), or numeric widening (`overload_coerce`). Real compilers (and the 1986 Red Dragon Book's Appendix A Pascal compiler project) must wire **all of those phases together** into one coherent pipeline:
 
 1. **Disambiguating `..` vs. decimal points in Pascal lexing:** In `array[1..4] of integer`, `1` is followed immediately by a dot. A naive lexer seeing `digit + '.'` greedily parses `1.` as a floating-point literal and fails on `.4`. Looking ahead to require a digit after `.` preserves `IntLit(1)`, `Dots`, `IntLit(4)`.
 2. **Scope chains & return-slot semantics:** Subprograms introduce local variables (`k`, `total`) and parameters (`limit`, `bonus`) that shadow or stay separate from global variables (`scores`, `i`, `avg`), while Pascal functions return values by assigning to the function's own name (`SumWeighted := total + bonus`).

@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-57 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+58 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -39,7 +39,7 @@ A compiler translates a program from one language into another. Follow one tiny 
 
 ### Scanning and parsing
 
-Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with regular expressions and finite automata, covers grammar transformations and top-down/bottom-up parsing, resolves ambiguities, and shows how to resume after a syntax error.
+Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section starts with regular expressions and finite automata, covers grammar transformations, handwritten recursive-descent and table-driven `LL(1)`/`SLR`/`LALR(1)`/`LR(1)` parsers, resolves ambiguities, and shows how to resume after a syntax error.
 
 | Example | 1977 Green | 1986 Red | 2006 Purple |
 | --- | --- | --- | --- |
@@ -49,6 +49,7 @@ Scanning groups characters into tokens, such as names and operators. Parsing che
 | [DFA State Minimization](examples/dfa_minimize/README.md) | 3 | 3 | 3 |
 | [Lex-Style Scanner Generator (`.l` DSL Compiler)](examples/lex_generator/README.md) | 3 | 3 (§3.5, §3.8) | 3 (§3.5, §3.8) |
 | [Grammar Rewriting: Left Recursion Elimination and Left Factoring](examples/grammar_rewrite/README.md) | 4–5 | 4 | 4 |
+| [Recursive-Descent Parsing (§4.4.1)](examples/recursive_descent/README.md) | 4–5 | 4 (§4.4) | 4 (§4.4.1) |
 | [FIRST, FOLLOW, and LL(1)](examples/ll1/README.md) | 4–5 | 4 | 4 |
 | [LR(0) items and SLR parsing](examples/slr/README.md) | 5–6 | 4 | 4 |
 | [Canonical LR(1), LALR(1), and Table Compaction](examples/lalr/README.md) | 5–6 | 4 | 4 |
