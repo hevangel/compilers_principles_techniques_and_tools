@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-49 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources.
+49 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -16,7 +16,7 @@ python3 examples/tiny_compiler/main.py "let n = 6; emit n + 2 * 3; emit (n + 2) 
 python3 -m unittest examples/*/main.py
 ```
 
-The first command prints bytecode and `Output: [27]`. The second prints `Output: [12, 24]`. Use `cargo test --example ll1` or `python3 -m unittest examples/ll1/main.py` to run the tests for a single example. Open [index.html](index.html) for the standalone browser index.
+The first command prints bytecode and `Output: [27]`. The second prints `Output: [12, 24]`. Use `cargo test --example ll1` or `python3 -m unittest examples/ll1/main.py` to run the tests for a single example. Browse the [GitHub Pages index](https://hevangel.github.io/compilers_principles_techniques_and_tools/) or open [index.html](index.html) for the standalone browser index.
 
 ## Edition guide
 
