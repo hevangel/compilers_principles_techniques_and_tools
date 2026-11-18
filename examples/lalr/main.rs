@@ -2,12 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Grammar symbol indexed into `Grammar` tables; terminal `0` is always `$` (EOF).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Symbol {
     Nt(usize),
     Term(usize), // 0 is reserved for End ($)
 }
 
+/// Canonical LR(1) item `[prod: A -> alpha . beta, lookahead]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Lr1Item {
     prod: usize,
@@ -22,6 +24,7 @@ enum Action {
     Accept,
 }
 
+/// Integer-indexed CFG with augmented start nonterminal `0` and production `0`.
 struct Grammar {
     num_nt: usize,
     num_terms: usize, // includes $ at 0
@@ -30,6 +33,7 @@ struct Grammar {
 }
 
 impl Grammar {
+    /// Fixed-point computation of `(FIRST(nt), nullable(nt))` for all nonterminals.
     fn first_sets(&self) -> Vec<(BTreeSet<usize>, bool)> {
         let mut first = vec![(BTreeSet::new(), false); self.num_nt];
         loop {
@@ -73,6 +77,7 @@ impl Grammar {
         (out, true)
     }
 
+    /// Fixed-point computation of `FOLLOW(nt)` (used only by SLR(1)).
     fn follow_sets(&self, first: &[(BTreeSet<usize>, bool)]) -> Vec<BTreeSet<usize>> {
         let mut follow = vec![BTreeSet::new(); self.num_nt];
         follow[0].insert(0); // $ follows augmented start 0
@@ -99,6 +104,9 @@ impl Grammar {
         }
     }
 
+    /// LR(1) closure: for `[A -> alpha . B beta, a]`, add `[B -> . gamma, b]`
+    /// for every `b` in `FIRST(beta a)`. Notice `a` is included at the end of `suffix`,
+    /// so if `beta` is nullable, `a` propagates directly as a lookahead.
     fn closure_lr1(
         &self,
         mut items: BTreeSet<Lr1Item>,
@@ -133,6 +141,7 @@ impl Grammar {
         }
     }
 
+    /// Advance LR(1) items expecting `sym` (preserving their lookaheads) and take `closure_lr1`.
     fn goto_lr1(
         &self,
         items: &BTreeSet<Lr1Item>,
@@ -169,6 +178,7 @@ struct ParseTable {
     conflicts: Vec<(usize, usize, Action, Action)>,
 }
 
+/// Compacted action table replacing reduce-only rows with a single default reduction.
 #[derive(Debug)]
 struct CompactTable {
     dense_entries: usize,
@@ -177,6 +187,9 @@ struct CompactTable {
     explicit_actions: BTreeMap<(usize, usize), Action>,
 }
 
+/// Compress sparse action rows by hoisting the most frequent `Reduce(p)` on states
+/// that contain no `Shift` or `Accept` actions (deferring syntax-error detection until
+/// the parent state cannot shift/reduce further, which still rejects every invalid input).
 fn compact_table(table: &ParseTable, num_terms: usize) -> CompactTable {
     let mut default_reduce = vec![None; table.num_states];
     let mut explicit_actions = BTreeMap::new();
@@ -190,6 +203,8 @@ fn compact_table(table: &ParseTable, num_terms: usize) -> CompactTable {
                 None => {}
             }
         }
+        // Only hoist a default reduction when the row has no Shift/Accept entries
+        // so explicit Shift/Accept cells can never be shadowed.
         let best_reduce = if !has_shift_or_accept {
             counts.into_iter().max_by_key(|&(_, c)| c).map(|(p, _)| p)
         } else {
@@ -214,6 +229,7 @@ fn compact_table(table: &ParseTable, num_terms: usize) -> CompactTable {
 
 type Lr1Collection = (Vec<BTreeSet<Lr1Item>>, BTreeMap<(usize, Symbol), usize>);
 
+/// Build the canonical collection of LR(1) item sets starting from `[S' -> . S, $]`.
 fn build_lr1_collection(g: &Grammar) -> Lr1Collection {
     let first = g.first_sets();
     let start_set = g.closure_lr1(
@@ -253,6 +269,10 @@ fn build_lr1_table(g: &Grammar) -> ParseTable {
     table_from_lr1_states(g, &states, &trans)
 }
 
+/// Construct LALR(1) by merging canonical LR(1) states that share identical LR(0) cores
+/// `(prod, dot)`, uniting their lookaheads. Merging cores preserves shift transitions
+/// identically (so it never creates a new shift/reduce conflict), though uniting lookaheads
+/// of two completed items can create a reduce/reduce conflict.
 fn build_lalr1_table(g: &Grammar) -> ParseTable {
     let (lr1_states, lr1_trans) = build_lr1_collection(g);
     let mut cores: Vec<BTreeSet<(usize, usize)>> = Vec::new();
@@ -277,6 +297,7 @@ fn build_lalr1_table(g: &Grammar) -> ParseTable {
     table_from_lr1_states(g, &merged, &lalr_trans)
 }
 
+/// Construct SLR(1) over the LR(0) cores using `FOLLOW(LHS)` for all reductions.
 fn build_slr1_table(g: &Grammar) -> ParseTable {
     let first = g.first_sets();
     let follow = g.follow_sets(&first);
@@ -335,6 +356,7 @@ fn build_slr1_table(g: &Grammar) -> ParseTable {
     }
 }
 
+/// Insert an action or record a conflict if a different action already occupies `(state, term)`.
 fn record_action(
     actions: &mut BTreeMap<(usize, usize), Action>,
     conflicts: &mut Vec<(usize, usize, Action, Action)>,
@@ -391,6 +413,7 @@ fn table_from_lr1_states(
     }
 }
 
+/// Run the LR shift-reduce driver on `tokens` using a conflict-free `ParseTable`.
 fn parse(g: &Grammar, table: &ParseTable, tokens: &[usize]) -> Result<Vec<usize>, String> {
     if !table.conflicts.is_empty() {
         return Err(format!("grammar has {} conflicts", table.conflicts.len()));

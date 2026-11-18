@@ -11,26 +11,58 @@ python3 -m unittest examples/liveness/main.py
 
 ## What the example teaches
 
-A block’s live-out set is the union of its successors’ live-in sets. Its live-in set adds reads that occur before local definitions, then propagates the live-out values that the block does not overwrite. The calculation repeats until stable.
+### Why we need this and when it is sound
 
-A value is **live** at a program point if some later path can read it before the variable is assigned again. This is a question about the current value of the variable. A new assignment can make the old value unnecessary even if the variable's name appears later. Register allocation can use this information to decide which values need storage at the same time.
+Two core compiler backends depend on knowing which variables still hold useful values at each program point:
+
+1. **Register allocation:** Two variables that are live at the same program point interfere with each other and cannot share a machine register; variables whose lifetimes never overlap can reuse the same register.
+2. **Dead-code elimination:** An assignment `x = expr` whose destination `x` is *dead* (not live) immediately after the instruction can be deleted (assuming `expr` has no side effects).
+
+A variable `v` is **live** at a program point if **there exists at least one path** from that point to a read of `v` before `v` is overwritten by a new assignment. Because discarding a needed value or overwriting its register silently corrupts execution, liveness must be a **backward may-analysis**:
+
+- **May (union) confluence:** `OUT[B]` is the union (`U`) of `IN[S]` across all successors `S` of `B`. Over-approximating liveness is safe (the compiler keeps an extra value alive); under-approximating is unsound.
+- **Empty initialization (`∅`):** Starting every set at `∅` grows sets monotonically upward toward the least fixed point, collecting every variable reachable along *some* future path.
 
 ### Propagate information backward
 
-A **control-flow graph** links basic blocks by possible next steps. For each block `B`, the example solves these equations.
+A **control-flow graph (CFG)** links basic blocks by possible control transfers. For each block `B`, the solver computes:
 
 ```text
 OUT[B] = union of IN[S] for every successor S
 IN[B]  = USE[B] union (OUT[B] minus DEF[B])
 ```
 
-A value live on any successor path is live on exit. An assignment kills the incoming value for later reads, so the second equation subtracts definitions before adding reads that occur before the block's first definition of each variable. In `x = x + step`, the old `x` is read before the new `x` is written, so `x` belongs to both sets.
+Here `USE[B]` is the set of **upward-exposed uses**—variables read in `B` *before* any assignment to them in `B`—and `DEF[B]` is the set of variables assigned in `B`. Subtracting `DEF[B]` kills incoming needs from `OUT[B]`, and unioning `USE[B]` adds reads that occur before the block's first definition. In `x = x + step`, the old `x` is read before the new `x` is written, so `x` belongs to *both* `USE` and `DEF`, keeping `x` in `IN`.
 
 ### Follow the loop
 
-Block 3 returns `x`, giving it live-in set `{x}` and empty live-out. Block 1 branches to the body or the return and reads `again`. Block 2 reads `x` and `step` and can branch back to block 1, so the need for `step` can travel around the loop. At the fixed point, block 0's live-out set is `{again, step, x}`. Its first assignment to `x` means the incoming set is only `{again, step}`.
+The sample CFG models `x = ...; while (again) { x = x + step; } return x;`:
 
-The algorithm starts with empty sets and repeats until no live-in changes. Repeating is essential because a block can acquire a fact from a successor that acquired it on a previous pass.
+```text
+B0 (def x) ──▶ B1 (use again) ──▶ B3 (use x; return)
+                 ▲        │
+                 │        ▼
+               B2 (use x, step; def x)
+```
+
+Iterating in reverse block order (`B3 -> B2 -> B1 -> B0`) converges in two computation passes (plus a verification pass):
+
+| Block | `USE` / `DEF` | Pass 1 `OUT` → `IN` | Pass 2 (Fixed Point) `OUT` → `IN` |
+| --- | --- | --- | --- |
+| `B3` | `USE={x}`, `DEF={}` | `{}` → `{x}` | `{}` → `{x}` |
+| `B2` | `USE={x, step}`, `DEF={x}` | `{}` → `{x, step}` | `{again, step, x}` → `{again, step, x}` |
+| `B1` | `USE={again}`, `DEF={}` | `{x, step}` → `{again, step, x}` | `{again, step, x}` → `{again, step, x}` |
+| `B0` | `USE={}`, `DEF={x}` | `{again, step, x}` → `{again, step}` | `{again, step, x}` → `{again, step}` |
+
+Repeating until `live_in` stops changing is essential: on Pass 1, `B2` did not yet know `again` was needed by the header `B1` on the next iteration, so `again` only reaches `B2` on Pass 2 via the back edge `B2 -> B1`.
+
+### How to read the code
+
+| Component | Rust ([`main.rs`](main.rs)) | Python ([`main.py`](main.py)) | Purpose |
+| --- | --- | --- | --- |
+| CFG node | `Block`, `Vars` | `Block` | Stores upward-exposed `uses`, `defs`, and `successors` indices |
+| Backward solver | `liveness(blocks)` | `liveness(blocks)` | Iterates blocks in reverse order updating `OUT` (`U`) and `IN` until fixed point |
+| Sample & test | `sample`, `main`, test fn | `sample`, `main`, `LivenessTests` | Builds the 4-block loop CFG and asserts `IN`/`OUT` at entry, body, and exit |
 
 ## What to look for
 

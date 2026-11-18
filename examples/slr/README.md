@@ -11,27 +11,45 @@ python3 -m unittest examples/slr/main.py
 
 ## What the example teaches
 
-`closure` expands items whose dot precedes a nonterminal. Advancing the dot and closing the result produces the transitions between item sets. Completed productions add reduce actions only on their left-hand side’s FOLLOW tokens.
+### Why we need this / What problem this solves
 
-An LL parser predicts a production before reading its right-hand side. A **bottom-up** parser works in the other direction. It **shifts** tokens onto a stack and **reduces** a recognized right-hand side to its left-hand nonterminal. This makes the left-recursive rule `List → List , Item` useful for extending a list that has already been recognized.
+A top-down LL parser must commit to a production *before* reading its right-hand side, which forces grammars to eliminate left recursion and often twists natural left-associative rules like `List → List , Item | Item`. A **bottom-up (shift-reduce) parser** works in reverse: it reads tokens onto a stack (**shift**) until the top of the stack forms a complete right-hand side (a **handle**), and then collapses that handle to its left-hand nonterminal (**reduce**). Because the whole phrase is already on the stack before reducing, left-recursive rules work natively and express left-associativity directly.
+
+The core challenge for a bottom-up parser is knowing *when* to shift versus *when* to reduce. **SLR(1)** builds an **LR(0) automaton** of parser states (sets of dotted productions) and resolves completed items (`A → α ·`) by reducing only when the next lookahead token is in `FOLLOW(A)`—preventing premature reductions that would strand the remaining input.
 
 ### From productions to a parser
 
-1. An **LR(0) item** is a production with a dot marking progress. `List → List · , Item` means a list has been recognized and the comma is expected next. The program stores an item as `(rule number, dot position)`.
-2. **Closure** adds the starting items of any nonterminal after a dot. For instance, `Start → · List` brings in both productions of `List`. To build an automaton transition, advance dots across one symbol, then take closure again.
-3. `actions` turns terminal transitions into shifts. A completed production becomes a reduction on its left-hand side's FOLLOW tokens. This is the SLR restriction. In the list grammar, a completed item may reduce before a comma or end of input. Completing the augmented start production on end of input gives acceptance.
-4. `parse` keeps automaton states on its stack. Shifting consumes a token and pushes a state. Reducing pops one state per right-hand symbol, consults the nonterminal transition (called **goto**) from the uncovered state, and pushes the result. The lookahead remains available for the next decision.
+1. An **LR(0) item** is a production with a dot marking progress (`(rule_index, dot_position)`). For example, `List → List · , Item` means a `List` has just been recognized and `,` is expected next.
+2. **`closure`** expands any item whose dot immediately precedes a nonterminal `B` by adding `(prod_of_B, 0)` until the set stabilizes. For instance, `Start → · List` brings in both productions of `List`, and `List → · Item` brings in `Item → · name`.
+3. **`automaton`** builds the DFA of item sets: for each symbol `X` appearing after a dot in state `s`, it advances those items' dots past `X` and takes `closure` to get the target state `goto[(s, X)]`.
+4. **`actions`** turns terminal transitions into `Shift(target)` and completed items (`dot == rhs.len()`) into `Reduce(rule)` on `FOLLOW(LHS) = {Comma, End}` (or `Accept` on `End` for rule 0: `Start → List ·`). Any overlapping cell is flagged as a grammar conflict.
+5. **`parse`** keeps automaton states on its stack. Shifting pushes the next state and advances input; reducing pops `rhs.len()` states and pushes `goto[(uncovered_state, lhs)]`.
 
-### Follow the reductions for `name , name`
+### Trace the shift-reduce stack for `name , name`
 
-| Rule | Recognized phrase |
-| --- | --- |
-| 3 | First `name` becomes an `Item` |
-| 2 | That `Item` becomes a `List` |
-| 3 | Second `name` becomes another `Item` |
-| 1 | `List , Item` becomes the longer `List` |
+Grammar rules: `(0) Start → List`, `(1) List → List , Item`, `(2) List → Item`, `(3) Item → name`.
 
-The parser then accepts on end of input. The leading `Start` rule is an extra production used to distinguish acceptance from an ordinary reduction.
+| Stack (states) | Input remaining | Action | Phrase / explanation |
+| --- | --- | --- | --- |
+| `[0]` | `name , name $` | `Shift` | Push state after `name` |
+| `[0, s_name]` | `, name $` | `Reduce(3)` | Pop 1 state (`name`), push `goto[0, Item]` (`Item → name`) |
+| `[0, s_item]` | `, name $` | `Reduce(2)` | Pop 1 state (`Item`), push `goto[0, List]` (`List → Item`) |
+| `[0, s_list]` | `, name $` | `Shift` | Comma matches `List → List · , Item` |
+| `[0, s_list, s_comma]` | `name $` | `Shift` | Shift second `name` |
+| `[0, s_list, s_comma, s_name]` | `$` | `Reduce(3)` | Pop 1 state (`name`), push `goto[s_comma, Item]` |
+| `[0, s_list, s_comma, s_item]` | `$` | `Reduce(1)` | Pop 3 states (`List , Item`), push `goto[0, List]` |
+| `[0, s_list]` | `$` | `Accept` | `Start → List ·` sees `$` -> reductions `[3, 2, 3, 1]` |
+
+The leading `Start → List` rule is an **augmented start production** added solely to distinguish accepting the entire program from an ordinary reduction.
+
+### How to read the code
+
+| Component | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| Grammar & symbols | `enum Symbol`, `const RULES` | `class Symbol(Enum)`, `RULES` | Augmented `Start -> List` grammar rules |
+| LR(0) closure & DFA | `after_dot`, `closure`, `automaton` | `after_dot`, `closure`, `automaton` | Builds canonical LR(0) item sets and `goto` transitions |
+| SLR table builder | `enum Action`, `fn actions` | `class Action`, `def build_actions` | Adds shifts, `FOLLOW`-gated reductions, and conflict checks |
+| Driver | `fn parse` | `def parse` | Shift/reduce/goto loop returning the list of reduced rule IDs |
 
 ## What to look for
 

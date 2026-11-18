@@ -6,6 +6,8 @@ import unittest
 
 
 class Symbol(Enum):
+    """Grammar symbols: nonterminals (`START`, `LIST`, `ITEM`), terminals, and `END`."""
+
     START = "Start"
     LIST = "List"
     ITEM = "Item"
@@ -14,6 +16,7 @@ class Symbol(Enum):
     END = "End"
 
 
+# Augmented grammar: rule 0 (`START -> LIST`) gives acceptance its own completed item.
 RULES: list[tuple[Symbol, list[Symbol]]] = [
     (Symbol.START, [Symbol.LIST]),
     (Symbol.LIST, [Symbol.LIST, Symbol.COMMA, Symbol.ITEM]),
@@ -23,12 +26,14 @@ RULES: list[tuple[Symbol, list[Symbol]]] = [
 
 
 def after_dot(item: tuple[int, int]) -> Symbol | None:
+    """Return the symbol immediately following the dot, or None if at the end of RHS."""
     rule, dot = item
     rhs = RULES[rule][1]
     return rhs[dot] if dot < len(rhs) else None
 
 
 def closure(items: set[tuple[int, int]]) -> frozenset[tuple[int, int]]:
+    """Expand items whose dot precedes a nonterminal until reaching a fixed point."""
     current = set(items)
     while True:
         previous = len(current)
@@ -45,6 +50,7 @@ def closure(items: set[tuple[int, int]]) -> frozenset[tuple[int, int]]:
 
 
 def automaton() -> tuple[list[frozenset[tuple[int, int]]], dict[tuple[int, Symbol], int]]:
+    """Build the canonical LR(0) item-set collection and state transition table."""
     sets = [closure({(0, 0)})]
     transitions: dict[tuple[int, Symbol], int] = {}
     state = 0
@@ -54,6 +60,7 @@ def automaton() -> tuple[list[frozenset[tuple[int, int]]], dict[tuple[int, Symbo
             key=lambda s: s.name,
         )
         for sym in symbols:
+            # Advance only items waiting on `sym`, then close under nonterminal expansions.
             advanced = {(r, d + 1) for (r, d) in sets[state] if after_dot((r, d)) == sym}
             nxt = closure(advanced)
             if nxt in sets:
@@ -68,6 +75,8 @@ def automaton() -> tuple[list[frozenset[tuple[int, int]]], dict[tuple[int, Symbo
 
 @dataclass(frozen=True)
 class Action:
+    """SLR parsing action (`Shift`, `Reduce`, or `Accept`)."""
+
     kind: str
     value: int | None = None
 
@@ -76,6 +85,7 @@ def build_actions(
     sets: list[frozenset[tuple[int, int]]],
     transitions: dict[tuple[int, Symbol], int],
 ) -> dict[tuple[int, Symbol], Action]:
+    """Build the SLR(1) action table by gating reductions on FOLLOW(LHS)."""
     actions: dict[tuple[int, Symbol], Action] = {}
     for (state, sym), target in transitions.items():
         if sym in (Symbol.NAME, Symbol.COMMA):
@@ -84,11 +94,13 @@ def build_actions(
         for rule, dot in sorted(items):
             if after_dot((rule, dot)) is not None:
                 continue
+            # FOLLOW(List) == FOLLOW(Item) == {Comma, End}.
             if rule == 0:
                 lookaheads, action = [Symbol.END], Action("Accept")
             else:
                 lookaheads, action = [Symbol.COMMA, Symbol.END], Action("Reduce", rule)
             for token in lookaheads:
+                # Overlapping shift/reduce or reduce/reduce entries signal an SLR conflict.
                 if (state, token) in actions:
                     raise ValueError(f"conflict at state {state}, token {token}")
                 actions[(state, token)] = action
@@ -100,6 +112,7 @@ def parse(
     actions: dict[tuple[int, Symbol], Action],
     goto: dict[tuple[int, Symbol], int],
 ) -> list[int] | None:
+    """Run the shift-reduce parser and return reduced rule numbers, or None on error."""
     if any(tok not in (Symbol.NAME, Symbol.COMMA) for tok in tokens):
         return None
     stream = [*tokens, Symbol.END]
@@ -120,6 +133,7 @@ def parse(
             lhs, rhs = RULES[rule]
             if rhs:
                 del stack[-len(rhs) :]
+            # Consult `goto` from the uncovered state; lookahead `stream[pos]` stays unconsumed.
             nxt = goto.get((stack[-1], lhs))
             if nxt is None:
                 return None

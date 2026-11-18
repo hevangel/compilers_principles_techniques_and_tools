@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+/// Source expression tree over memory operands, integer immediates, addition, and multiplication.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Expr {
     Mem(String),
@@ -10,6 +11,7 @@ enum Expr {
     Mul(Box<Expr>, Box<Expr>),
 }
 
+/// Target RISC-plus-indexed-addressing instruction set.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TileCode {
     Ld {
@@ -20,6 +22,7 @@ enum TileCode {
         dst: usize,
         val: i64,
     },
+    /// Fused addressing/arithmetic instruction: `dst = regs[base] + scale * regs[idx]`.
     LdIndexed {
         dst: usize,
         base: usize,
@@ -59,13 +62,16 @@ enum TileCode {
     Label(String),
 }
 
+/// Best tiling decision at one AST node for a specific register budget `k`.
 #[derive(Clone, Debug)]
 struct DpSolution {
     cost: usize,
+    /// True if the left subtree should be evaluated first using `k` regs (leaving `k - 1` for right).
     left_first: bool,
     tile: SelectedTile,
 }
 
+/// Tree-pattern tiles available to the DP selector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SelectedTile {
     LdMem,
@@ -78,14 +84,18 @@ enum SelectedTile {
 
 const INF: usize = 1_000_000;
 
+/// DP-annotated expression node storing the cost vector `best[1..=max_regs]`.
 struct DpNode {
     expr: Expr,
     left: Option<Box<DpNode>>,
     right: Option<Box<DpNode>>,
-    // best[regs_available]: solution with result in register, for 1..=max_regs.
+    /// `best[k]` = minimum-cost tiling that leaves this subtree's result in a register using `<= k` regs.
     best: Vec<Option<DpSolution>>,
 }
 
+/// Bottom-up DP tree tiling (Dragon Book §8.11):
+/// Solves children first, then tries every matching tile and evaluation order for each register
+/// budget `k` in `1..=max_regs`.
 fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
     let (left, right) = match expr {
         Expr::Mem(_) | Expr::Imm(_) => (None, None),
@@ -126,7 +136,8 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
             Expr::Add(_l, r) => {
                 let ln = left.as_ref().unwrap();
                 let rn = right.as_ref().unwrap();
-                // Tile 1: AddImm (if right is Imm) -> evaluates left in k regs + AddImm (cost 1).
+                // Tile 1: AddImm (if right is Imm) -> evaluates left in `k` regs + AddImm (cost 1).
+                // Consumes the immediate directly inside the instruction without loading a register.
                 if matches!(**r, Expr::Imm(_)) {
                     if let Some(ls) = &ln.best[k] {
                         update(
@@ -140,15 +151,18 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
                         );
                     }
                 }
-                // Tile 2: Fused LEA base + scale * idx when right is Mul(idx, Imm(2|4|8)).
+                // Tile 2: Fused LEA `base + scale * idx` when right is `Mul(idx, Imm(2|4|8))`.
+                // Skips the intermediate `Mul` node completely, fusing it into one `LdIndexed` (cost 1).
                 if let Expr::Mul(_, mr) = &**r {
                     if let Expr::Imm(scale) = &**mr {
                         if matches!(scale, 2 | 4 | 8) && k >= 2 {
                             let idx_node = rn.left.as_ref().unwrap();
+                            // Option A: eval `base` in `k` regs, hold result in 1 reg, eval `idx` in `k - 1` regs.
                             let c1 = ln.best[k]
                                 .as_ref()
                                 .zip(idx_node.best[k - 1].as_ref())
                                 .map(|(a, b)| a.cost + b.cost + 1);
+                            // Option B: eval `idx` in `k` regs first, then `base` in `k - 1` regs.
                             let c2 = idx_node.best[k]
                                 .as_ref()
                                 .zip(ln.best[k - 1].as_ref())
@@ -178,7 +192,8 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
                         }
                     }
                 }
-                // Tile 3: Generic AddReg (contiguous eval with >= 2 regs).
+                // Tile 3: Generic AddReg (contiguous eval with >= 2 regs):
+                // whichever child runs first gets all `k` regs; the second runs with `k - 1` regs.
                 if k >= 2 {
                     if let (Some(la), Some(rb)) = (&ln.best[k], &rn.best[k - 1]) {
                         update(
@@ -203,7 +218,7 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
                         );
                     }
                 }
-                // Tile 4: Spill left when only 1 reg available (`k == 1` non-contiguous).
+                // Tile 4: Spill left when only 1 reg available (`k == 1` non-contiguous eval).
                 if let (Some(ls), Some(rs)) = (&ln.best[k], &rn.best[k]) {
                     update(
                         &mut best,
@@ -243,6 +258,7 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
                         );
                     }
                 }
+                // Spill fallback when `k == 1` (no second register available to hold first child).
                 if best[k].is_none() {
                     let c = ln.best[k].as_ref().map_or(INF, |x| x.cost)
                         + rn.best[k].as_ref().map_or(INF, |x| x.cost)
@@ -271,6 +287,7 @@ fn solve_dp(expr: &Expr, max_regs: usize) -> DpNode {
     }
 }
 
+/// Top-down code emission following the optimal `best[regs_avail]` decision at every DP node.
 fn emit_dp(node: &DpNode, base_reg: usize, regs_avail: usize, out: &mut Vec<TileCode>) {
     let sol = node.best[regs_avail].as_ref().expect("no valid tiling");
     match sol.tile {
@@ -310,6 +327,8 @@ fn emit_dp(node: &DpNode, base_reg: usize, regs_avail: usize, out: &mut Vec<Tile
             let Expr::Imm(scale) = rn.right.as_ref().unwrap().expr else {
                 unreachable!()
             };
+            // Always leave `base` in `base_reg` and `idx` in `base_reg + 1` before `LdIndexed`,
+            // while respecting whichever child DP chose to evaluate first with `regs_avail`.
             if sol.left_first {
                 emit_dp(ln, base_reg, regs_avail, out);
                 emit_dp(idx_node, base_reg + 1, regs_avail - 1, out);
@@ -357,6 +376,7 @@ fn emit_dp(node: &DpNode, base_reg: usize, regs_avail: usize, out: &mut Vec<Tile
     }
 }
 
+/// Baseline un-tiled 1-to-1 AST postorder emitter (always expands `Add`/`Mul`/`Imm` separately).
 fn naive_postorder_emit(expr: &Expr, reg: usize, out: &mut Vec<TileCode>) -> usize {
     match expr {
         Expr::Mem(m) => {
@@ -393,6 +413,8 @@ fn naive_postorder_emit(expr: &Expr, reg: usize, out: &mut Vec<TileCode>) -> usi
     }
 }
 
+/// Fixed-point sliding-window peephole optimizer (Dragon Book §8.7):
+/// repeatedly rewrites local 1- or 2-instruction redundancies until no pattern matches.
 fn peephole_optimize(code: &[TileCode]) -> Vec<TileCode> {
     let mut cur = code.to_vec();
     loop {
@@ -400,8 +422,9 @@ fn peephole_optimize(code: &[TileCode]) -> Vec<TileCode> {
         let mut i = 0usize;
         let mut changed = false;
         while i < cur.len() {
-            // Pattern 1: ST r, x; LD r, x -> ST r, x
             if i + 1 < cur.len() {
+                // Pattern 1 (Redundant load after store): ST r, x; LD r, x -> ST r, x
+                // Safe because no Label intervenes between `cur[i]` and `cur[i + 1]`.
                 if let (TileCode::St { src, mem: m1 }, TileCode::Ld { dst, mem: m2 }) =
                     (&cur[i], &cur[i + 1])
                 {
@@ -412,7 +435,7 @@ fn peephole_optimize(code: &[TileCode]) -> Vec<TileCode> {
                         continue;
                     }
                 }
-                // Pattern 2: Jmp L followed immediately by Label L -> remove Jmp L
+                // Pattern 2 (Jump to next instruction): Jmp L; Label L -> Label L
                 if let (TileCode::Jmp(t), TileCode::Label(l)) = (&cur[i], &cur[i + 1]) {
                     if t == l {
                         i += 1;
@@ -421,7 +444,7 @@ fn peephole_optimize(code: &[TileCode]) -> Vec<TileCode> {
                     }
                 }
             }
-            // Pattern 3: ADD r, r, 0 -> delete
+            // Pattern 3 (Algebraic identity): ADD r, r, 0 -> delete
             if let TileCode::AddImm { dst, lhs, imm: 0 } = &cur[i] {
                 if dst == lhs {
                     i += 1;
@@ -429,7 +452,7 @@ fn peephole_optimize(code: &[TileCode]) -> Vec<TileCode> {
                     continue;
                 }
             }
-            // Pattern 4: MUL r, r, 2 -> SHL r, r, 1
+            // Pattern 4 (Strength reduction): MUL d, s, 2 -> SHL d, s, 1
             if let TileCode::MulImm { dst, lhs, imm: 2 } = &cur[i] {
                 next.push(TileCode::ShlImm {
                     dst: *dst,

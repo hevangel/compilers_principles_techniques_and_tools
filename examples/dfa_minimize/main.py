@@ -7,6 +7,8 @@ import unittest
 
 @dataclass(frozen=True)
 class Dfa:
+    """Table-driven DFA with dense transition rows `trans[state][col]`."""
+
     start: int
     alphabet: list[str]
     accepting: frozenset[int]
@@ -22,6 +24,10 @@ class Dfa:
 
 
 def prune_unreachable(dfa: Dfa) -> Dfa:
+    """Discard states unreachable from `dfa.start` and reindex reachable states `0..k-1`.
+
+    Pruned first so unreachable disconnected components cannot survive as extra blocks.
+    """
     visited = {dfa.start}
     queue = deque([dfa.start])
     order: list[int] = []
@@ -39,15 +45,19 @@ def prune_unreachable(dfa: Dfa) -> Dfa:
 
 
 def minimize(dfa: Dfa) -> tuple[Dfa, list[frozenset[int]]]:
+    """Minimize `dfa` by partition refinement and return `(minimal_dfa, classes)`."""
     reachable = prune_unreachable(dfa)
     num_states = len(reachable.trans)
     accepting = set(reachable.accepting)
     non_accepting = set(range(num_states)) - accepting
 
+    # Initial split separates accepting from non-accepting states; drop empty blocks
+    # so all-accepting or all-rejecting DFAs collapse cleanly to one quotient state.
     partition: list[frozenset[int]] = [
         frozenset(block) for block in (accepting, non_accepting) if block
     ]
 
+    # Refine until every block's states share the same destination-group signature.
     while True:
         state_group = [0] * num_states
         for gid, group in enumerate(partition):
@@ -67,12 +77,14 @@ def minimize(dfa: Dfa) -> tuple[Dfa, list[frozenset[int]]]:
             break
         partition = next_partition
 
+    # Put the start state's equivalence class first for deterministic output.
     partition.sort(key=lambda g: (0 if reachable.start in g else 1, min(g)))
     group_of = [0] * num_states
     for gid, group in enumerate(partition):
         for s in group:
             group_of[s] = gid
 
+    # Construct quotient transitions from one representative per equivalence class.
     trans = []
     min_accepting: set[int] = set()
     for gid, group in enumerate(partition):

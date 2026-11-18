@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+/// Basic block summarized for a single normalized expression `e`
+/// (assuming any `e_use` precedes any `e_kill` within the block).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LcmBlock {
     name: String,
@@ -10,6 +12,7 @@ struct LcmBlock {
     succs: Vec<usize>,
 }
 
+/// Intermediate bitvectors and final placement/replacement decisions produced by LCM.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LcmSolution {
     blocks: Vec<LcmBlock>,
@@ -23,6 +26,11 @@ struct LcmSolution {
     replace_use: Vec<bool>,
 }
 
+/// Split every critical edge `b -> s` (where `b` has >1 successor and `s` has >1 predecessor).
+///
+/// Why: without a dedicated landing-pad block on `b -> s`, placing `t = e` in `b` would
+/// execute `e` speculatively on `b`'s other branch, while placing it in `s` would miss
+/// `b -> s` or duplicate work for `s`'s other predecessors.
 fn split_critical_edges(blocks: &[LcmBlock]) -> Vec<LcmBlock> {
     let n = blocks.len();
     let mut preds = vec![0usize; n];
@@ -52,8 +60,8 @@ fn split_critical_edges(blocks: &[LcmBlock]) -> Vec<LcmBlock> {
     out
 }
 
-// Knoop-Rüthing-Steffen Lazy Code Motion (§9.5.5) on a single target expression `e`
-// assuming `e_use` occurs before any `e_kill` in a block (or single-stmt blocks).
+/// Knoop-Rüthing-Steffen Lazy Code Motion (§9.5.5) on a single target expression `e`
+/// assuming `e_use` occurs before any `e_kill` in a block (or single-stmt blocks).
 fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution {
     let blocks = split_critical_edges(raw_blocks);
     let n = blocks.len();
@@ -64,7 +72,9 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         }
     }
 
-    // Pass 1: Anticipated (backward must).
+    // Pass 1: Anticipated (backward must / &&, initialized to true except at exit).
+    // `ant_in[b]` means *every* path from entry of `b` to `exit` evaluates `e` before any kill.
+    // This guarantees soundness: inserting `e` at a non-anticipated point would be speculative.
     let mut ant_in: Vec<bool> = (0..n).map(|b| b != exit).collect();
     let mut ant_out = vec![false; n];
     loop {
@@ -90,7 +100,9 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         }
     }
 
-    // Pass 2: Available (forward must).
+    // Pass 2: Available (forward must / &&, initialized to true except at entry).
+    // Marks blocks where `e` would already be computed (either anticipated earlier or flowing in)
+    // and not killed; `earliest` is the frontier where anticipation first begins.
     let mut avail_in = vec![false; n];
     let mut avail_out: Vec<bool> = (0..n).map(|b| b != entry).collect();
     loop {
@@ -117,9 +129,12 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         }
     }
 
+    // Earliest safe placement frontier: anticipated here, and not already available from predecessors.
     let earliest: Vec<bool> = (0..n).map(|b| ant_in[b] && !avail_in[b]).collect();
 
-    // Pass 3: Postponable (forward must).
+    // Pass 3: Postponable (forward must / &&, initialized to true except at entry).
+    // `post_in[b]` means an `earliest` placement can be delayed past predecessors down to `b`'s entry
+    // without passing an `e_use` or losing full coverage.
     let mut post_in = vec![false; n];
     let mut post_out: Vec<bool> = (0..n).map(|b| b != entry).collect();
     loop {
@@ -146,6 +161,8 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         }
     }
 
+    // `latest[b]` is the furthest point placement can be pushed: either `b` itself uses `e`,
+    // or at least one successor cannot receive a postponed placement (preventing code duplication).
     let latest: Vec<bool> = (0..n)
         .map(|b| {
             if b == exit || blocks[b].succs.is_empty() {
@@ -159,7 +176,9 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         })
         .collect();
 
-    // Pass 4: Used (backward may).
+    // Pass 4: Used (backward may / ||, initialized to false).
+    // Determines whether the temporary computed at a `latest` site is actually read on some
+    // downstream path before hitting another `latest` site, avoiding needless temporary copies.
     let mut used_in = vec![false; n];
     let mut used_out = vec![false; n];
     loop {
@@ -181,6 +200,9 @@ fn solve_lcm(raw_blocks: &[LcmBlock], entry: usize, exit: usize) -> LcmSolution 
         }
     }
 
+    // Final code-motion decisions:
+    // - Insert `t = e` at entry of `b` iff `b` is `latest` and `t` is used later (`used_out[b]`).
+    // - Replace original `e_use` with `t` unless `b` is a non-reused `latest` block itself.
     let insert_at_entry: Vec<bool> = (0..n).map(|b| latest[b] && used_out[b]).collect();
     let replace_use: Vec<bool> = (0..n)
         .map(|b| blocks[b].e_use && (!latest[b] || used_out[b]))

@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Desugared regex AST where every `Literal` and `EndMarker` carries a unique
+/// 1-based leaf position used by the direct `followpos` DFA construction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum RegexNode {
     Empty,
@@ -12,6 +14,8 @@ enum RegexNode {
     EndMarker(usize),
 }
 
+/// Surface AST produced directly by the parser before `+` and `?` are desugared
+/// and before leaf positions are numbered.
 #[derive(Clone, Debug)]
 enum RawAst {
     Empty,
@@ -23,6 +27,7 @@ enum RawAst {
     Opt(Box<RawAst>),
 }
 
+/// Recursive-descent regex parser enforcing precedence: atom > postfix (`*`, `+`, `?`) > concat > alt (`|`).
 struct RegexParser<'a> {
     bytes: &'a [u8],
     pos: usize,
@@ -40,6 +45,7 @@ impl<'a> RegexParser<'a> {
         self.bytes.get(self.pos).copied()
     }
 
+    // Lowest precedence: alternation `r1 | r2 | ...`
     fn parse_alt(&mut self) -> Result<RawAst, String> {
         let mut node = self.parse_cat()?;
         while self.peek() == Some(b'|') {
@@ -50,6 +56,7 @@ impl<'a> RegexParser<'a> {
         Ok(node)
     }
 
+    // Implicit concatenation stops at `|`, `)`, or EOF; an empty branch like `a||b` is rejected.
     fn parse_cat(&mut self) -> Result<RawAst, String> {
         let mut factors = Vec::new();
         while let Some(ch) = self.peek() {
@@ -68,6 +75,7 @@ impl<'a> RegexParser<'a> {
         }))
     }
 
+    // Postfix operators bind tighter than concatenation (`ab*` = `a(b*)`, not `(ab)*`).
     fn parse_postfix(&mut self) -> Result<RawAst, String> {
         let mut node = self.parse_atom()?;
         while let Some(op) = self.peek() {
@@ -90,6 +98,7 @@ impl<'a> RegexParser<'a> {
         Ok(node)
     }
 
+    // Highest precedence: `()` (empty), `(alt)`, escaped literal `\x`, or plain character.
     fn parse_atom(&mut self) -> Result<RawAst, String> {
         match self.peek() {
             Some(b'(') => {
@@ -125,6 +134,10 @@ impl<'a> RegexParser<'a> {
     }
 }
 
+/// Lower `RawAst` into core operators (`Empty`, `Literal`, `Cat`, `Alt`, `Star`) and
+/// assign a fresh 1-based position ID to every literal leaf.
+/// Crucially, `a+` is cloned into `a a*` BEFORE numbering so the two copies of `a`
+/// receive distinct position IDs for `followpos`.
 fn assign_positions(raw: &RawAst, next_pos: &mut usize) -> RegexNode {
     match raw {
         RawAst::Empty => RegexNode::Empty,
@@ -153,6 +166,7 @@ fn assign_positions(raw: &RawAst, next_pos: &mut usize) -> RegexNode {
     }
 }
 
+/// Parse an ASCII regular expression pattern into a positioned `RegexNode` AST.
 fn parse_regex(pattern: &str) -> Result<RegexNode, String> {
     if pattern.is_empty() {
         return Ok(RegexNode::Empty);
@@ -162,6 +176,7 @@ fn parse_regex(pattern: &str) -> Result<RegexNode, String> {
     }
     let mut parser = RegexParser::new(pattern);
     let raw = parser.parse_alt()?;
+    // Reject leftover closing parentheses or trailing garbage not consumed by `parse_alt`.
     if parser.pos != parser.bytes.len() {
         return Err(format!(
             "unexpected trailing character at byte {}",
@@ -172,6 +187,8 @@ fn parse_regex(pattern: &str) -> Result<RegexNode, String> {
     Ok(assign_positions(&raw, &mut next_pos))
 }
 
+/// Epsilon-NFA built via McNaughton-Yamada-Thompson rules.
+/// `transitions[s]` stores `(Some(byte), dst)` for labeled edges and `(None, dst)` for epsilon edges.
 #[derive(Clone, Debug)]
 struct Nfa {
     start: usize,
@@ -186,6 +203,8 @@ impl Nfa {
         id
     }
 
+    // Invariant: every recursive call returns a fragment `(s, t)` with a single entry
+    // state `s` and single exit state `t` (no outgoing edges from `t` until composed).
     fn build(&mut self, node: &RegexNode) -> (usize, usize) {
         match node {
             RegexNode::Empty => {
@@ -221,6 +240,7 @@ impl Nfa {
                 let s = self.new_state();
                 let (s1, t1) = self.build(a);
                 let t = self.new_state();
+                // Loop back from t1->s1 for repetition, plus s->t to allow zero repetitions.
                 self.transitions[s].push((None, s1));
                 self.transitions[s].push((None, t));
                 self.transitions[t1].push((None, s1));
@@ -231,6 +251,7 @@ impl Nfa {
         }
     }
 
+    /// DFS over epsilon (`None`) edges to find all states reachable without consuming input.
     fn eps_closure(&self, seeds: &BTreeSet<usize>) -> BTreeSet<usize> {
         let mut closure = seeds.clone();
         let mut stack: Vec<usize> = seeds.iter().copied().collect();
@@ -244,6 +265,7 @@ impl Nfa {
         closure
     }
 
+    /// Simulate the NFA in lockstep across `input` bytes (Thompson's subset simulation).
     fn accepts(&self, input: &str) -> bool {
         let mut current = self.eps_closure(&BTreeSet::from([self.start]));
         for &byte in input.as_bytes() {
@@ -273,6 +295,8 @@ fn to_thompson_nfa(node: &RegexNode) -> Nfa {
     nfa
 }
 
+/// Deterministic transition table compiled directly from `followpos`.
+/// `trans[state][col]` maps `(state, alphabet[col]) -> next_state`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Dfa {
     start: usize,
@@ -285,6 +309,7 @@ impl Dfa {
     fn accepts(&self, input: &str) -> bool {
         let mut state = self.start;
         for &byte in input.as_bytes() {
+            // Any byte outside the pattern's alphabet cannot match.
             let Some(col) = self.alphabet.iter().position(|&b| b == byte) else {
                 return false;
             };
@@ -294,6 +319,10 @@ impl Dfa {
     }
 }
 
+/// Synthesized attributes computed bottom-up for each AST node in the direct DFA pass:
+/// - `nullable`: can this subexpression match the empty string?
+/// - `firstpos`: leaf positions that can match the first character of a string from this node.
+/// - `lastpos`: leaf positions that can match the last character of a string from this node.
 struct DirectInfo {
     nullable: bool,
     firstpos: BTreeSet<usize>,
@@ -309,6 +338,7 @@ fn max_position(node: &RegexNode) -> usize {
     }
 }
 
+/// Postorder AST walk computing `(nullable, firstpos, lastpos)` and populating `followpos`.
 fn collect_positions(
     node: &RegexNode,
     pos_char: &mut BTreeMap<usize, u8>,
@@ -330,6 +360,7 @@ fn collect_positions(
             }
         }
         RegexNode::EndMarker(pos) => {
+            // EndMarker is not added to `pos_char`, so `#` never becomes a runtime input symbol.
             followpos.entry(*pos).or_default();
             DirectInfo {
                 nullable: false,
@@ -353,13 +384,16 @@ fn collect_positions(
         RegexNode::Cat(a, b) => {
             let left = collect_positions(a, pos_char, followpos);
             let right = collect_positions(b, pos_char, followpos);
+            // Any position at the end of `a` can be immediately followed by any start position of `b`.
             for &p in &left.lastpos {
                 followpos.entry(p).or_default().extend(&right.firstpos);
             }
+            // If `a` is nullable, a match of `a b` can start directly inside `b`.
             let mut firstpos = left.firstpos;
             if left.nullable {
                 firstpos.extend(right.firstpos);
             }
+            // Symmetrically, if `b` is nullable, a match of `a b` can end inside `a`.
             let mut lastpos = right.lastpos.clone();
             if right.nullable {
                 lastpos.extend(left.lastpos);
@@ -372,6 +406,7 @@ fn collect_positions(
         }
         RegexNode::Star(a) => {
             let inner = collect_positions(a, pos_char, followpos);
+            // After finishing one iteration of `a*`, another iteration can start at `firstpos(a)`.
             for &p in &inner.lastpos {
                 followpos.entry(p).or_default().extend(&inner.firstpos);
             }
@@ -384,6 +419,8 @@ fn collect_positions(
     }
 }
 
+/// Build a DFA directly from an AST by augmenting it with `EndMarker` (`r#`) and
+/// exploring reachable sets of AST leaf positions via `followpos`.
 fn compile_direct_dfa(node: &RegexNode) -> Dfa {
     let end_pos = max_position(node) + 1;
     let augmented = RegexNode::Cat(
@@ -401,6 +438,7 @@ fn compile_direct_dfa(node: &RegexNode) -> Dfa {
         .into_iter()
         .collect();
 
+    // Start state is `firstpos` of the augmented root `(r)#`.
     let mut state_sets = vec![root.firstpos];
     let mut state_index = BTreeMap::from([(state_sets[0].clone(), 0usize)]);
     let mut accepting = BTreeSet::new();
@@ -409,11 +447,13 @@ fn compile_direct_dfa(node: &RegexNode) -> Dfa {
     let mut cursor = 0;
     while cursor < state_sets.len() {
         let current = state_sets[cursor].clone();
+        // A state accepts iff the sentinel `#` position is among the positions expected next.
         if current.contains(&end_pos) {
             accepting.insert(cursor);
         }
         let mut row = Vec::with_capacity(alphabet.len());
         for &sym in &alphabet {
+            // Transition on `sym`: union `followpos(p)` for all positions `p` in `current` labeled `sym`.
             let mut next_set = BTreeSet::new();
             for &p in &current {
                 if pos_char.get(&p) == Some(&sym) {

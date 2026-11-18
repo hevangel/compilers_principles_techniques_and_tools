@@ -6,11 +6,18 @@ import unittest
 
 @dataclass(frozen=True)
 class HeapSite:
+    """Abstract heap object tagged with its allocation label and runtime class type."""
+
     label: str
     class_type: str
 
 
 def push_call_string(ctx: tuple[str, ...], site: str, k: int) -> tuple[str, ...]:
+    """Append call site `site` and truncate to the last `k` call sites (`()` when `k == 0`).
+
+    Keeping at most `k` sites bounds the context space to `|sites|^k`, guaranteeing
+    termination even on recursive call chains.
+    """
     if k == 0:
         return ()
     nxt = ctx + (site,)
@@ -18,6 +25,14 @@ def push_call_string(ctx: tuple[str, ...], site: str, k: int) -> tuple[str, ...]
 
 
 def solve_k_cfa(program: dict, k: int) -> dict:
+    """Jointly solve k-CFA points-to sets and on-the-fly virtual call graph discovery.
+
+    Invariants:
+    - `pts` is keyed by `(func_name, call_string, var_name)` so distinct contexts stay isolated.
+    - Virtual calls resolve `(obj.class_type, method)` only for `HeapSite`s currently in
+      `pts[(func_name, ctx, receiver)]`, binding `obj` specifically to `this` (`params[0]`).
+    - All sets (`pts`, `reachable`, `call_edges`) grow monotonically inside a finite domain.
+    """
     pts: dict[tuple[str, tuple[str, ...], str], set[HeapSite]] = {}
     reachable: set[tuple[str, tuple[str, ...]]] = {(program["entry"], ())}
     call_edges: set[tuple[str, tuple[str, ...], str, str, tuple[str, ...]]] = set()
@@ -105,6 +120,7 @@ def solve_k_cfa(program: dict, k: int) -> dict:
 
 
 def merged_var(res: dict, func: str, var: str) -> set[str]:
+    """Collect all heap-site labels for `var` in `func` across every reachable context."""
     out: set[str] = set()
     for (f, _ctx, v), sites in res["pts"].items():
         if f == func and v == var:

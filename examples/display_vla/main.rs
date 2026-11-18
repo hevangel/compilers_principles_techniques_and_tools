@@ -1,22 +1,35 @@
 //! Contrast O(1) lexical display lookups against static-link hops and manage stack VLAs.
 
+/// Activation record combining static links, display save/restore state, and VLA metadata.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Frame {
     proc_name: String,
+    /// Lexical nesting depth (0 = outermost). Indexes directly into `RuntimeMachine::display`.
     depth: usize,
+    /// Enclosing lexical frame (depth - 1) for traditional pointer-chasing lookups.
     static_link: Option<usize>,
+    /// Previous value of `display[depth]` before this call overwrote it; restored on return.
     saved_display: Option<usize>,
+    /// Starting index in `RuntimeMachine::stack`; fixed-size locals occupy `locals_start..`.
     locals_start: usize,
+    /// Starting index of this frame's variable-length array, placed *after* fixed locals.
     vla_ptr: Option<usize>,
+    /// Runtime-determined length of the VLA (0 if none).
     vla_len: usize,
 }
 
+/// Abstract call-stack machine tracking both a lexical display and static-link hop counts.
 #[derive(Clone, Debug)]
 struct RuntimeMachine {
+    /// Contiguous value stack holding fixed locals followed by VLA elements for each active frame.
     stack: Vec<i64>,
+    /// Stack of active frame descriptors; frame IDs are indices into this vector.
     frames: Vec<Frame>,
+    /// Lexical display: `display[d]` caches the active frame ID at lexical depth `d` for O(1) access.
     display: Vec<Option<usize>>,
+    /// Cumulative dereferences performed by `read_via_static_link` (for comparison).
     static_hops: usize,
+    /// Cumulative lookups performed by `read_via_display` (always 1 per read).
     display_hops: usize,
 }
 
@@ -31,6 +44,7 @@ impl RuntimeMachine {
         }
     }
 
+    /// Push a new frame at lexical `depth`, allocate fixed locals followed by a VLA, and update display.
     fn push_frame(
         &mut self,
         proc_name: &str,
@@ -38,14 +52,20 @@ impl RuntimeMachine {
         fixed_locals: &[i64],
         vla_len: usize,
     ) -> usize {
+        // The static parent is whichever frame is currently active one lexical level outward.
         let static_link = if depth == 0 {
             None
         } else {
             self.display[depth - 1]
         };
+        // Save the prior frame at `depth` (e.g., an earlier recursive call or sibling) before clobbering.
         let saved_display = self.display[depth];
+
+        // Allocate fixed-size locals first so their offsets from `locals_start` are compile-time constants.
         let locals_start = self.stack.len();
         self.stack.extend_from_slice(fixed_locals);
+
+        // Allocate runtime-sized VLA *after* fixed locals so it never shifts fixed local offsets.
         let vla_ptr = if vla_len > 0 {
             let ptr = self.stack.len();
             self.stack.resize(ptr + vla_len, 0);
@@ -53,6 +73,7 @@ impl RuntimeMachine {
         } else {
             None
         };
+
         let frame_id = self.frames.len();
         self.frames.push(Frame {
             proc_name: proc_name.to_string(),
@@ -63,16 +84,19 @@ impl RuntimeMachine {
             vla_ptr,
             vla_len,
         });
+        // Invariant: `display[depth]` always points to the innermost active frame at `depth`.
         self.display[depth] = Some(frame_id);
         frame_id
     }
 
+    /// Pop the top frame, restoring `display[depth]` and reclaiming both fixed locals and VLA storage.
     fn pop_frame(&mut self) {
         let frame = self.frames.pop().expect("empty call stack");
         self.display[frame.depth] = frame.saved_display;
         self.stack.truncate(frame.locals_start);
     }
 
+    /// O(1) nonlocal read: index `display[target_depth]` directly without walking static links.
     fn read_via_display(&mut self, target_depth: usize, local_offset: usize) -> i64 {
         self.display_hops += 1;
         let frame_id = self.display[target_depth].expect("display entry missing");
@@ -80,6 +104,7 @@ impl RuntimeMachine {
         self.stack[addr]
     }
 
+    /// O(depth) nonlocal read: follow `static_link` pointers from the current frame up to `target_depth`.
     fn read_via_static_link(&mut self, target_depth: usize, local_offset: usize) -> i64 {
         let mut cur = self.frames.len() - 1;
         while self.frames[cur].depth > target_depth {
@@ -88,18 +113,20 @@ impl RuntimeMachine {
                 .static_link
                 .expect("broken static link chain");
         }
-        // Final frame dereference.
+        // Final frame dereference to read the slot once the target depth is reached.
         self.static_hops += 1;
         let addr = self.frames[cur].locals_start + local_offset;
         self.stack[addr]
     }
 
+    /// Write an element in `frame_id`'s stack-allocated VLA via its fixed-offset pointer.
     fn write_vla(&mut self, frame_id: usize, index: usize, value: i64) {
         let ptr = self.frames[frame_id].vla_ptr.expect("frame has no VLA");
         assert!(index < self.frames[frame_id].vla_len, "VLA out of bounds");
         self.stack[ptr + index] = value;
     }
 
+    /// Read an element from `frame_id`'s stack-allocated VLA via its fixed-offset pointer.
     fn read_vla(&self, frame_id: usize, index: usize) -> i64 {
         let ptr = self.frames[frame_id].vla_ptr.expect("frame has no VLA");
         assert!(index < self.frames[frame_id].vla_len, "VLA out of bounds");

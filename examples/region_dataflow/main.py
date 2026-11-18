@@ -6,6 +6,8 @@ import unittest
 
 @dataclass(frozen=True)
 class TransferFn:
+    """Affine bitvector transfer function `f(X) = gen | (X & ~kill)` for reaching definitions."""
+
     gen: int
     kill: int
 
@@ -14,19 +16,23 @@ class TransferFn:
 
     @staticmethod
     def compose(second: "TransferFn", first: "TransferFn") -> "TransferFn":
+        """Sequential composition `second(first(X))`."""
         return TransferFn(second.gen | (first.gen & ~second.kill), second.kill | first.kill)
 
     @staticmethod
     def union_meet(a: "TransferFn", b: "TransferFn") -> "TransferFn":
+        """May/union join `a(X) | b(X)`: a bit is killed only if *both* paths kill it."""
         return TransferFn(a.gen | b.gen, a.kill & b.kill)
 
     def star(self) -> "TransferFn":
+        """Kleene closure `f*(X) = X | f(X) | ...`: 0-trip path clears `kill` to `0`."""
         return TransferFn(self.gen, 0)
 
 
 def reduce_t1_t2(
     num_blocks: int, edges: list[tuple[int, int]], block_tfs: list[TransferFn]
 ) -> tuple[list[int], int]:
+    """Bottom-up T1/T2 region reduction followed by top-down `IN[B]` instantiation."""
     regions = set(range(num_blocks))
     out_edges: dict[int, dict[int, TransferFn]] = {b: {} for b in range(num_blocks)}
     in_preds: dict[int, set[int]] = {b: set() for b in range(num_blocks)}
@@ -34,11 +40,13 @@ def reduce_t1_t2(
         out_edges[u][v] = block_tfs[u]
         in_preds[v].add(u)
 
+    # Record each structural step so we can propagate `IN` top-down in reverse order.
     steps: list[tuple] = []
     next_id = num_blocks
     entry = 0
 
     while not (len(regions) == 1 and not out_edges[entry]):
+        # T1: remove self-loop `u -> u` by applying Kleene closure `f*` to `u`'s exit edges.
         t1_node = next((u for u in sorted(regions) if u in out_edges[u]), None)
         if t1_node is not None:
             u = t1_node
@@ -67,6 +75,7 @@ def reduce_t1_t2(
             steps.append(("T1", new_id, u, self_tf))
             continue
 
+        # T2: fold non-entry `v` whose sole predecessor is `u != v` into `u`.
         t2_pair = None
         for v in sorted(regions):
             if v == entry:
@@ -91,6 +100,7 @@ def reduce_t1_t2(
             v_out = out_edges.pop(v)
             u_out = out_edges.pop(u)
             new_out = {}
+            # Redirect `u -> w` and `v -> w` edges, merging parallel targets via `union_meet`.
             for w, tf_uw in u_out.items():
                 target = new_id if w in (u, v) else w
                 if target != new_id:
@@ -132,8 +142,10 @@ def reduce_t1_t2(
             steps.append(("T2", new_id, u, v, u_to_v))
             continue
 
+        # Neither T1 nor T2 applies -> irreducible multi-entry cycle.
         raise ValueError(f"Irreducible CFG: remaining={sorted(regions)}")
 
+    # Top-down `IN` propagation along reverse reduction steps from `IN[root] = 0`.
     region_in: dict[int, int] = {entry: 0}
     for step in reversed(steps):
         if step[0] == "T1":
@@ -150,6 +162,7 @@ def reduce_t1_t2(
 def iterative_mfp_reaching_defs(
     num_blocks: int, edges: list[tuple[int, int]], block_tfs: list[TransferFn]
 ) -> list[int]:
+    """Reference iterative reaching-definitions solver to verify `reduce_t1_t2` bit-for-bit."""
     preds: list[list[int]] = [[] for _ in range(num_blocks)]
     for u, v in edges:
         preds[v].append(u)
@@ -172,6 +185,7 @@ def iterative_mfp_reaching_defs(
 
 
 def multi_loop_sample() -> tuple[int, list[tuple[int, int]], list[TransferFn]]:
+    """Nested two-loop reducible CFG (`B0 -> B1 -> {B2, B5}`, `B2 -> {B3 -> B2, B4 -> B1}`)."""
     edges = [(0, 1), (1, 2), (1, 5), (2, 3), (2, 4), (3, 2), (4, 1)]
     tfs = [
         TransferFn(0b00001, 0b00000),
@@ -199,9 +213,11 @@ class RegionDataflowTests(unittest.TestCase):
         self.assertEqual(in_blocks, iterative_mfp_reaching_defs(n, edges, tfs))
 
     def test_detects_irreducible_double_entry_loop(self) -> None:
+        # Double-entry loop `0 -> {1, 2}, 1 <-> 2` leaves both 1 and 2 with 2 predecessors.
         with self.assertRaises(ValueError):
             reduce_t1_t2(3, [(0, 1), (0, 2), (1, 2), (2, 1)], [TransferFn(0, 0)] * 3)
 
 
 if __name__ == "__main__":
     main()
+

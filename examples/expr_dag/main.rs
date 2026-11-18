@@ -9,6 +9,8 @@ enum Op {
     Mul,
 }
 
+// Canonical value-numbered DAG nodes. Notice `ArrayLoad` includes `epoch` so loads
+// separated by a store or pointer kill cannot collide in the hash-cons table.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum DagNode {
     Leaf(String),
@@ -21,6 +23,7 @@ enum DagNode {
     },
 }
 
+// Source-level expression AST before value numbering or simplification.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ExprAst {
     Var(String),
@@ -28,6 +31,7 @@ enum ExprAst {
     Bin(Op, Box<ExprAst>, Box<ExprAst>),
 }
 
+// Basic-block statements; `PtrKill` models an unknown pointer write that may alias any array.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum BbStmt {
     Assign {
@@ -47,6 +51,7 @@ enum BbStmt {
     PtrKill,
 }
 
+// Linear Three-Address Code (TAC) reassembled from the DAG.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TacInst {
     LoadConst {
@@ -75,6 +80,12 @@ enum TacInst {
     },
 }
 
+// Hash-consing DAG builder.
+// Invariants:
+// - `table` and `nodes` form a bijection: every unique DagNode gets one stable ID (`0..nodes.len()`).
+// - `env` maps each source variable name to the DAG node ID holding its current value.
+// - `array_epoch[A]` (defaulting to `global_epoch`) increments whenever `A` is written,
+//   invalidating older `ArrayLoad` nodes without deleting them from `nodes`.
 struct DagBuilder {
     nodes: Vec<DagNode>,
     table: BTreeMap<DagNode, usize>,
@@ -94,6 +105,7 @@ impl DagBuilder {
         }
     }
 
+    // Hash-consing lookup/insert: structurally identical canonical nodes share one ID.
     fn intern(&mut self, node: DagNode) -> usize {
         if let Some(&id) = self.table.get(&node) {
             return id;
@@ -104,6 +116,7 @@ impl DagBuilder {
         id
     }
 
+    // Look up a variable's current value number, or allocate its initial input Leaf node.
     fn leaf(&mut self, name: &str) -> usize {
         if let Some(&id) = self.env.get(name) {
             return id;
@@ -113,6 +126,7 @@ impl DagBuilder {
         id
     }
 
+    // Bottom-up post-order lowering of an expression AST into the DAG.
     fn lower_ast(&mut self, ast: &ExprAst) -> usize {
         match ast {
             ExprAst::Var(name) => self.leaf(name),
@@ -125,6 +139,7 @@ impl DagBuilder {
         }
     }
 
+    // Simplify and canonicalize a binary operation before interning.
     fn make_bin(&mut self, op: Op, l: &mut usize, r: &mut usize) -> usize {
         // Constant folding
         if let (DagNode::Const(a), DagNode::Const(b)) = (&self.nodes[*l], &self.nodes[*r]) {
@@ -136,7 +151,8 @@ impl DagBuilder {
             return self.intern(DagNode::Const(folded));
         }
 
-        // Algebraic identities
+        // Algebraic identities + commutative operand ordering (smaller ID first)
+        // so `a + b` and `b + a` produce identical DagNode::Bin keys.
         match op {
             Op::Add => {
                 if matches!(self.nodes[*l], DagNode::Const(0)) {
@@ -178,6 +194,7 @@ impl DagBuilder {
         self.intern(DagNode::Bin(op, *l, *r))
     }
 
+    // Return the TAC variable/temporary holding DAG node `id`, emitting LoadConst if needed.
     fn name_of(
         id: usize,
         nodes: &[DagNode],
@@ -204,6 +221,8 @@ impl DagBuilder {
         }
     }
 
+    // Lower a sequence of basic-block statements into deduplicated TAC.
+    // `computed_name` caches which TAC variable/temp already holds each materialized DAG node.
     fn process_block(&mut self, stmts: &[BbStmt]) -> Vec<TacInst> {
         let mut tac = Vec::new();
         let mut computed_name: BTreeMap<usize, String> = BTreeMap::new();
@@ -227,6 +246,7 @@ impl DagBuilder {
                             src: src_name,
                         });
                     }
+                    // Future reads of `dst` in this block now resolve to `id`.
                     self.env.insert(dst.clone(), id);
                 }
                 BbStmt::ArrayRead { dst, array, index } => {
@@ -241,6 +261,7 @@ impl DagBuilder {
                     let existed = self.table.contains_key(&key);
                     let load_id = self.intern(key);
                     if !existed {
+                        // First load for (array, idx_id, epoch): emit memory load and cache its dest.
                         let idx_name = Self::name_of(
                             idx_id,
                             &self.nodes,
@@ -255,6 +276,7 @@ impl DagBuilder {
                         });
                         computed_name.insert(load_id, dst.clone());
                     } else {
+                        // Same array, index value number, and epoch: reuse the earlier load via Copy.
                         let prev = computed_name[&load_id].clone();
                         tac.push(TacInst::Copy {
                             dst: dst.clone(),
@@ -291,6 +313,8 @@ impl DagBuilder {
                         index: idx_name,
                         value: val_name,
                     });
+                    // Bump this array's epoch so any subsequent read (even with a different index
+                    // variable name, in case of aliasing) misses the old ArrayLoad cache entry.
                     let e = self
                         .array_epoch
                         .entry(array.clone())
@@ -298,6 +322,8 @@ impl DagBuilder {
                     *e += 1;
                 }
                 BbStmt::PtrKill => {
+                    // An opaque pointer write may alias any array: advance global_epoch and clear
+                    // per-array overrides so every array starts at the new global epoch.
                     self.global_epoch += 1;
                     self.array_epoch.clear();
                 }
@@ -306,6 +332,8 @@ impl DagBuilder {
         tac
     }
 
+    // Emit TAC instructions in post-order for any unmaterialized sub-DAG rooted at `id`.
+    // `computed` ensures shared DAG nodes are emitted at most once.
     fn materialize(
         &self,
         id: usize,

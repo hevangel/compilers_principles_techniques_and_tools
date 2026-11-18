@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-// Affine bitvector transfer function `f(X) = gen | (X & !kill)` for up to 64 facts.
+/// Affine bitvector transfer function `f(X) = gen | (X & !kill)` for up to 64 facts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct TransferFn {
     gen: u64,
@@ -18,7 +18,8 @@ impl TransferFn {
         self.gen | (x & !self.kill)
     }
 
-    // Compose `second(first(X))`.
+    /// Sequential composition `second(first(X))`:
+    /// facts from `first` survive unless killed by `second`, and `second` kills everything in `first` or `second`.
     fn compose(second: Self, first: Self) -> Self {
         Self {
             gen: second.gen | (first.gen & !second.kill),
@@ -26,7 +27,8 @@ impl TransferFn {
         }
     }
 
-    // Meet (may/union) `f1(X) | f2(X)` = `(gen1 | gen2) | (X & !(kill1 & kill2))`.
+    /// Path meet (may / union) `f1(X) | f2(X)` = `(gen1 | gen2) | (X & !(kill1 & kill2))`.
+    /// A fact is killed across the join only if *both* branches kill it.
     fn union_meet(a: Self, b: Self) -> Self {
         Self {
             gen: a.gen | b.gen,
@@ -34,11 +36,9 @@ impl TransferFn {
         }
     }
 
-    // Kleene loop closure for monotone may-analysis:
-    // `(GEN | (X & !KILL))` repeated >= 0 times with identity yields `(GEN, 0)`?
-    // Careful: `f*(X) = I(X) | f(X) | f(f(X)) | ... = X | GEN_R` where `X` is NOT killed because
-    // 0 trips through a self-loop preserves incoming X, OR for region exit after body it executes >= 1 time!
-    // Dragon Book §9.7.5 (L18100+): f* = I /\ f /\ f^2 ... = (gen, 0) for union meet!
+    /// Kleene loop closure for monotone may-analysis:
+    /// `f*(X) = I(X) | f(X) | f(f(X)) | ... = X | gen` = `(gen, 0)`.
+    /// Clearing `kill` to 0 reflects that 0 iterations through the self-loop preserves incoming facts.
     fn star(self) -> Self {
         Self {
             gen: self.gen,
@@ -47,6 +47,7 @@ impl TransferFn {
     }
 }
 
+/// Hierarchical region tree built bottom-up by T1 (self-loop closure) and T2 (sequential merge).
 #[derive(Clone, Debug)]
 enum Region {
     Leaf {
@@ -57,7 +58,7 @@ enum Region {
         id: usize,
         header: Box<Region>,
         body: Box<Region>,
-        // Transfer out of header and out of body back-edge/exit.
+        // Transfer out of header into body, and summary out of region.
         tf_body_in: TransferFn,
         tf_out: TransferFn,
     },
@@ -102,22 +103,16 @@ impl Region {
     }
 }
 
+/// Returned when neither T1 nor T2 applies with >1 node remaining (non-reducible CFG).
 #[derive(Debug, PartialEq, Eq)]
 struct IrreducibleError {
     remaining_nodes: Vec<usize>,
 }
 
-// Build region tree via T1 (self-edge loop) & T2 (single-predecessor folding) for linear/single-exit chains & loops,
-// plus proper meet across branches (`join`) when folding into a region!
-// Let's handle general DAG/reducible CFG via structural T1/T2:
-// - T1: node `u` has self-edge `u -> u` -> wrap `u` in `Loop` with `f* = f.star()` (preserving self-loop).
-// - T2: node `v != entry` has unique predecessor `u` (not `v`) AND `u`'s successors allow absorbing `(u, v)` cleanly:
-//   Wait: if `u` has 2 successors (`v` and `w`) and `v` also flows into `w` (`if/else` or `loop`),
-//   Notice standard T2 folds `v` into `u` whenever `preds[v] == {u}`, redirecting `v`'s outgoing edges to come from merged `(u, v)`.
-//   When `u` ends up with BOTH a self-edge (`u -> u` via absorbed latch) and an exit edge, T1 fires on `u`!
-//   Even for a diamond `0 -> {1, 2} -> 3`, wait: `3` has TWO preds (`1, 2`), while `1` and `2` each have ONE pred (`0`)!
-//   When `0` absorbs `1` (`01 -> {2, 3}`) and then `01` absorbs `2` (`012 -> {3, 3}`), `3` now has ONLY ONE pred (`012`) so `012` absorbs `3`!
-//   THAT'S the full power of T1/T2 reduction when multiple edges are tracked properly via sets!
+// Build region tree via T1 (self-edge loop) & T2 (single-predecessor folding) with parallel-edge meet:
+// - T1: node `u` has self-edge `u -> u` -> wrap `u` in `Loop` with `f* = f.star()` and compose onto exits.
+// - T2: node `v != entry` has unique predecessor `u != v` -> absorb `v` into `u`, compose `u -> v -> w`
+//   summaries, and merge parallel edges via `union_meet`.
 
 #[derive(Clone, Debug)]
 struct EdgeSummary {
@@ -125,6 +120,7 @@ struct EdgeSummary {
     tf: TransferFn,
 }
 
+/// Perform bottom-up T1/T2 reduction followed by top-down `IN[B]` propagation.
 fn reduce_t1_t2(
     num_blocks: usize,
     edges: &[(usize, usize)],
@@ -155,7 +151,7 @@ fn reduce_t1_t2(
         in_preds.get_mut(&v).unwrap().insert(u);
     }
 
-    // Structural history log for top-down IN propagation.
+    // Structural history log replayed in reverse during top-down `IN` propagation.
     #[derive(Clone, Debug)]
     enum Step {
         T1 {
@@ -187,6 +183,7 @@ fn reduce_t1_t2(
         if let Some(u) = t1_node {
             let self_edge = out_edges.get_mut(&u).unwrap().remove(&u).unwrap();
             in_preds.get_mut(&u).unwrap().remove(&u);
+            // Algebraic loop fixed point: `(gen, 0)` preserves incoming definitions across 0+ trips.
             let closure = self_edge.tf.star();
 
             let old_reg = regions.remove(&u).unwrap();
@@ -260,6 +257,7 @@ fn reduce_t1_t2(
             let u_out = out_edges.remove(&u).unwrap();
             let mut new_out: BTreeMap<usize, EdgeSummary> = BTreeMap::new();
 
+            // Redirect `u -> w` edges; back edges to `u` or `v` become self-edges on `new_id`.
             for (w, summ_uw) in u_out {
                 let target = if w == u || w == v { new_id } else { w };
                 if w != u && w != v {
@@ -271,6 +269,7 @@ fn reduce_t1_t2(
                     .and_modify(|e| e.tf = TransferFn::union_meet(e.tf, summ_uw.tf))
                     .or_insert(summ_uw);
             }
+            // Redirect `v -> w` edges by composing `u -> v` first, merging parallel paths via `union_meet`.
             for (w, summ_vw) in v_out {
                 let composed = TransferFn::compose(summ_vw.tf, u_to_v.tf);
                 let target = if w == u || w == v { new_id } else { w };
@@ -329,13 +328,13 @@ fn reduce_t1_t2(
             continue;
         }
 
-        // Neither T1 nor T2 applies with > 1 nodes (or irreducible cycles left).
+        // Neither T1 nor T2 applies with > 1 nodes: CFG contains an irreducible multi-entry cycle.
         return Err(IrreducibleError {
             remaining_nodes: regions.keys().copied().collect(),
         });
     }
 
-    // Top-down IN propagation along reverse construction steps.
+    // Top-down IN propagation along reverse construction steps starting from empty entry `0u64`.
     let mut region_in: BTreeMap<usize, u64> = BTreeMap::new();
     region_in.insert(entry, 0u64);
     for step in steps.iter().rev() {
@@ -345,6 +344,7 @@ fn reduce_t1_t2(
                 old_id,
                 self_tf,
             } => {
+                // Entry of the loop body sees `outer_in` unioned with everything generated by `self_tf*`.
                 let outer_in = region_in[new_id];
                 let loop_in = self_tf.star().apply(outer_in);
                 region_in.insert(*old_id, loop_in);
@@ -355,6 +355,7 @@ fn reduce_t1_t2(
                 v,
                 u_to_v_tf,
             } => {
+                // Header `u` inherits parent's `IN`; absorbed node `v` receives `u_to_v_tf(IN[parent])`.
                 let in_parent = region_in[new_id];
                 region_in.insert(*u, in_parent);
                 region_in.insert(*v, u_to_v_tf.apply(in_parent));

@@ -6,6 +6,8 @@ import unittest
 
 
 class Op(Enum):
+    """Precedence-table keys (separating binary `-` from unary `-`)."""
+
     LT = "Lt"
     ADD = "Add"
     SUB = "Sub"
@@ -15,6 +17,8 @@ class Op(Enum):
 
 
 class Assoc(Enum):
+    """Associativity tie-breaker when stack-top and lookahead operators share precedence."""
+
     LEFT = "Left"
     RIGHT = "Right"
     NON_ASSOC = "NonAssoc"
@@ -73,6 +77,7 @@ Stmt = LeafStmt | IfStmt
 
 
 def default_prec_table() -> dict[Op, tuple[int, Assoc]]:
+    """Return `(precedence, associativity)` table with `%prec` unary `-` above `*`."""
     return {
         Op.LT: (1, Assoc.NON_ASSOC),
         Op.ADD: (2, Assoc.LEFT),
@@ -87,6 +92,7 @@ BINARY_MAP = {"<": Op.LT, "+": Op.ADD, "-": Op.SUB, "*": Op.MUL, "^": Op.POW}
 
 
 def should_reduce(top: Op, lookahead: Op, table: dict[Op, tuple[int, Assoc]]) -> bool:
+    """Return True to reduce stack-top operator `top`, False to shift `lookahead`."""
     p_top, a_top = table[top]
     p_la, _ = table[lookahead]
     if p_top > p_la:
@@ -97,6 +103,7 @@ def should_reduce(top: Op, lookahead: Op, table: dict[Op, tuple[int, Assoc]]) ->
         return True
     if a_top == Assoc.RIGHT:
         return False
+    # Chained non-associative operators (e.g. `a < b < c`) are rejected.
     raise ValueError(f"non-associative operator conflict: {top.value} vs {lookahead.value}")
 
 
@@ -127,6 +134,10 @@ def tokenize_expr(text: str) -> list[tuple[str, str]]:
 
 
 def parse_expr(tokens: list[tuple[str, str]], table: dict[Op, tuple[int, Assoc]]) -> Expr:
+    """Parse an expression with precedence/associativity via value and operator stacks.
+
+    `expect_operand` tracks grammar state so prefix `'-'` receives `Op.UNARY_NEG`.
+    """
     values: list[Expr] = []
     ops: list[tuple[str, str, Op | None]] = []
     expect_operand = True
@@ -161,6 +172,7 @@ def parse_expr(tokens: list[tuple[str, str]], table: dict[Op, tuple[int, Assoc]]
                 raise ValueError("unmatched ')'")
             expect_operand = False
         elif kind == "OP" and lex == "-" and expect_operand:
+            # Unary negation sits at precedence 4 (above `*`, below `^`).
             ops.append(("UNARY", "-", Op.UNARY_NEG))
         elif kind == "OP":
             if expect_operand:
@@ -186,6 +198,7 @@ def parse_expr(tokens: list[tuple[str, str]], table: dict[Op, tuple[int, Assoc]]
 
 
 def parse_if_stmts(tokens: list[tuple[str, str]]) -> Stmt:
+    """Shift-reduce parser resolving dangling-else via shift-beats-reduce on `ELSE`."""
     stack: list[tuple[str, object]] = []
     pos = 0
     while True:
@@ -198,6 +211,7 @@ def parse_if_stmts(tokens: list[tuple[str, str]]) -> Stmt:
                 stack.append(("REDUCED", IfStmt(cond, then_s, else_s)))  # type: ignore[arg-type]
                 continue
             if prev_kind == "IF":
+                # Shift `ELSE` when present so it attaches to the innermost open `IF`.
                 if lookahead is not None and lookahead[0] == "ELSE":
                     _, then_s = stack.pop()
                     _, cond = stack.pop()

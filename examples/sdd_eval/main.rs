@@ -2,8 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+// Vertex in the attribute dependency graph: (parse_node_id, attribute_name).
+// Naming convention: `syn_*` denotes synthesized attributes; anything else (e.g., `inh_*`) is inherited.
 type AttrInstance = (usize, String);
 
+// Closed set of semantic actions so rules remain inspectable and deterministic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuleKind {
     Const(i64),
@@ -12,6 +15,7 @@ enum RuleKind {
     AddTenTimesLeftPlusRight,
 }
 
+// One semantic equation: `target = kind(deps...)`, adding dependency edges `dep -> target`.
 #[derive(Clone, Debug)]
 struct Rule {
     target: AttrInstance,
@@ -19,12 +23,14 @@ struct Rule {
     kind: RuleKind,
 }
 
+// Parse-tree skeleton used to verify whether attribute dependencies respect tree structure.
 #[derive(Clone, Debug)]
 struct ParseNode {
     parent: Option<usize>,
     children: Vec<usize>,
 }
 
+// Hierarchy of SDDs: SAttributed subset of LAttributed subset of GeneralAcyclic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SddClass {
     SAttributed,
@@ -38,6 +44,12 @@ enum EvalError {
     UnknownDep(AttrInstance),
 }
 
+// Classify an SDD by checking every cross-node dependency edge `dep -> target`:
+// - S-attributed invariant: only synthesized attributes exist, and they depend only on direct children
+//   (or same-node attributes), enabling pure bottom-up LR parser evaluation.
+// - L-attributed invariant: synthesized attributes depend only on direct children (or self), while
+//   inherited attributes on a child may depend only on its parent or siblings strictly to its left,
+//   enabling a single depth-first left-to-right evaluation pass.
 fn classify_sdd(nodes: &[ParseNode], rules: &[Rule]) -> SddClass {
     let mut is_s_attributed = true;
     let mut is_l_attributed = true;
@@ -47,6 +59,7 @@ fn classify_sdd(nodes: &[ParseNode], rules: &[Rule]) -> SddClass {
         let is_synth = target_attr.starts_with("syn_");
         for (dep_node, _) in &rule.deps {
             if *dep_node == target_node {
+                // Intra-node edges are valid in both S- and L-attributed SDDs (assuming acyclicity).
                 continue;
             }
             let target_is_parent_of_dep = nodes[target_node].children.contains(dep_node);
@@ -70,6 +83,7 @@ fn classify_sdd(nodes: &[ParseNode], rules: &[Rule]) -> SddClass {
                         is_l_attributed = false;
                     }
                 } else {
+                    // Root inherited attributes have no parent or left siblings in the tree.
                     is_l_attributed = false;
                 }
             }
@@ -85,6 +99,9 @@ fn classify_sdd(nodes: &[ParseNode], rules: &[Rule]) -> SddClass {
     }
 }
 
+// Evaluate rules using Kahn's topological sort over the attribute dependency graph.
+// Invariant: an attribute enters `ready` only once `in_degree == 0`, i.e., all of its
+// dependencies already have entries in `values`. Using BTreeSet makes tie-breaking deterministic.
 fn evaluate_sdd(
     rules: &[Rule],
 ) -> Result<(Vec<AttrInstance>, BTreeMap<AttrInstance, i64>), EvalError> {
@@ -145,6 +162,7 @@ fn evaluate_sdd(
         }
     }
 
+    // Any node that never reached in_degree 0 is part of or blocked by a dependency cycle.
     if order.len() != all_nodes.len() {
         let cycle_nodes: Vec<AttrInstance> = in_degree
             .into_iter()

@@ -6,6 +6,8 @@ import unittest
 
 @dataclass
 class LcmBlock:
+    """CFG block summarized for one expression `e` (`e_use` assumed before any `e_kill`)."""
+
     name: str
     e_use: bool
     e_kill: bool
@@ -14,6 +16,8 @@ class LcmBlock:
 
 @dataclass
 class LcmSolution:
+    """Bitvectors from the 4 LCM passes plus final `insert_at_entry`/`replace_use` decisions."""
+
     blocks: list[LcmBlock]
     anticipated_in: list[bool]
     available_in: list[bool]
@@ -26,6 +30,11 @@ class LcmSolution:
 
 
 def split_critical_edges(blocks: list[LcmBlock]) -> list[LcmBlock]:
+    """Insert a landing-pad block on every critical edge `b -> s` (`|succ(b)| > 1` and `|pred(s)| > 1`).
+
+    Splitting gives `b -> s` its own block so LCM can place `t = e` exclusively along `b -> s`
+    without speculating into `b`'s other branch or duplicating at `s`.
+    """
     n = len(blocks)
     preds = [0] * n
     for blk in blocks:
@@ -43,6 +52,7 @@ def split_critical_edges(blocks: list[LcmBlock]) -> list[LcmBlock]:
 
 
 def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolution:
+    """Run Knoop-Rüthing-Steffen Lazy Code Motion (§9.5.5) over four data-flow passes."""
     blocks = split_critical_edges(raw_blocks)
     n = len(blocks)
     preds: list[list[int]] = [[] for _ in range(n)]
@@ -50,6 +60,8 @@ def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolut
         for s in blk.succs:
             preds[s].append(b)
 
+    # Pass 1: Anticipated (backward must / all) — `e` is guaranteed to be evaluated on every
+    # path from block entry to `exit_blk` before being killed (prevents unsafe speculation).
     ant_in = [b != exit_blk for b in range(n)]
     ant_out = [False] * n
     while True:
@@ -66,6 +78,8 @@ def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolut
         if not changed:
             break
 
+    # Pass 2: Available (forward must / all) — `earliest` marks the first safe frontier where
+    # `e` is anticipated and not yet available along all incoming paths.
     avail_in = [False] * n
     avail_out = [b != entry for b in range(n)]
     while True:
@@ -82,6 +96,8 @@ def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolut
 
     earliest = [ant_in[b] and not avail_in[b] for b in range(n)]
 
+    # Pass 3: Postponable (forward must / all) — delays placement as late as possible toward
+    # uses (`latest`) to minimize temporary register lifetimes without duplicating evaluations.
     post_in = [False] * n
     post_out = [b != entry for b in range(n)]
     while True:
@@ -104,6 +120,7 @@ def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolut
         for b in range(n)
     ]
 
+    # Pass 4: Used (backward may / any) — avoids inserting `t = e` if `t` is never read later.
     used_in = [False] * n
     used_out = [False] * n
     while True:
@@ -130,6 +147,7 @@ def solve_lcm(raw_blocks: list[LcmBlock], entry: int, exit_blk: int) -> LcmSolut
 def count_evals_along_path(
     raw_blocks: list[LcmBlock], sol: LcmSolution, path: list[int]
 ) -> tuple[int, int]:
+    """Count dynamic evaluations of `e` along `path` before vs. after edge-split LCM."""
     before = sum(1 for b in path if raw_blocks[b].e_use)
     split_path = [path[0]]
     for u, v in zip(path, path[1:]):
@@ -170,6 +188,7 @@ class LazyCodeMotionTests(unittest.TestCase):
     def test_partial_diamond_splits_critical_edge_and_eliminates_double_eval(self) -> None:
         diamond = partial_diamond_sample()
         sol = solve_lcm(diamond, 0, 3)
+        # Critical edge 0 -> 2 is split into `split_0_2` (index 4).
         self.assertEqual(len(sol.blocks), 5)
         self.assertEqual(sol.blocks[4].name, "split_0_2")
         self.assertTrue(sol.insert_at_entry[4])
@@ -180,6 +199,7 @@ class LazyCodeMotionTests(unittest.TestCase):
         self.assertEqual(count_evals_along_path(diamond, sol, [0, 2, 3]), (1, 1))
 
     def test_loop_invariant_hoisted_only_when_anticipated(self) -> None:
+        # `while` loop can exit with 0 iterations (`header -> exit`), so `e` is NOT anticipated at preheader.
         while_loop = [
             LcmBlock("preheader", False, False, [1]),
             LcmBlock("header", False, False, [2, 3]),
@@ -189,6 +209,7 @@ class LazyCodeMotionTests(unittest.TestCase):
         sol = solve_lcm(while_loop, 0, 3)
         self.assertFalse(sol.insert_at_entry[0])
 
+        # `do_while` always executes `body` >= 1 time, so `e` IS anticipated and hoisted into preheader.
         do_while = [
             LcmBlock("preheader", False, False, [1]),
             LcmBlock("body", True, False, [1, 2]),
@@ -203,3 +224,4 @@ class LazyCodeMotionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     main()
+

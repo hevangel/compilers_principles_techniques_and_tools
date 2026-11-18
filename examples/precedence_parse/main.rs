@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+/// Distinct operator entries in the precedence table. Note that binary `-` (`Sub`)
+/// and unary `-` (`UnaryNeg`) share the character `'-'` but carry different precedences.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Op {
     Lt,
@@ -99,6 +101,7 @@ fn char_to_binary_op(ch: char) -> Result<Op, String> {
     }
 }
 
+/// Items pushed onto the operator stack while parsing expressions.
 #[derive(Clone, Copy, Debug)]
 enum PendingOp {
     Binary(char, Op),
@@ -106,6 +109,8 @@ enum PendingOp {
     LParen,
 }
 
+/// Decide whether to reduce `top` on the stack (`Ok(true)`) or shift `lookahead` (`Ok(false)`).
+/// Non-associative operators at equal precedence (`a < b < c`) are rejected with `Err`.
 fn should_reduce(
     top: Op,
     lookahead: Op,
@@ -128,6 +133,7 @@ fn should_reduce(
     }
 }
 
+/// Pop one pending operator and combine its operand(s) from `values`.
 fn reduce_top(values: &mut Vec<Expr>, ops: &mut Vec<PendingOp>) -> Result<(), String> {
     match ops.pop() {
         Some(PendingOp::UnaryNeg) => {
@@ -146,6 +152,9 @@ fn reduce_top(values: &mut Vec<Expr>, ops: &mut Vec<PendingOp>) -> Result<(), St
     }
 }
 
+/// Operator-precedence shift-reduce parser (shunting-yard onto an AST stack).
+/// `expect_operand` distinguishes prefix unary `'-'` from binary `'-'` and catches
+/// malformed juxtaposition like `id id` or `* +`.
 fn parse_expr(tokens: &[Token], table: &BTreeMap<Op, (u8, Assoc)>) -> Result<Expr, String> {
     let mut values: Vec<Expr> = Vec::new();
     let mut ops: Vec<PendingOp> = Vec::new();
@@ -179,7 +188,7 @@ fn parse_expr(tokens: &[Token], table: &BTreeMap<Op, (u8, Assoc)>) -> Result<Exp
                 expect_operand = false;
             }
             Token::Op('-') if expect_operand => {
-                // %prec UnaryNeg
+                // %prec UnaryNeg: parsed in prefix position, so `-id ^ id` reduces `^` (prec 5) before `-` (prec 4).
                 ops.push(PendingOp::UnaryNeg);
             }
             Token::Op(ch) => {
@@ -269,6 +278,7 @@ fn parse_if_stmts(tokens: &[Token]) -> Result<Stmt, String> {
             if len >= 2 {
                 match &stack[len - 2] {
                     StackItem::ElseMarker(_, _) => {
+                        // An `if c then s1 else` waiting on `s2` always reduces unconditionally.
                         let StackItem::Reduced(else_s) = stack.pop().unwrap() else {
                             unreachable!()
                         };
@@ -295,6 +305,7 @@ fn parse_if_stmts(tokens: &[Token]) -> Result<Stmt, String> {
                             pos += 1;
                             continue;
                         }
+                        // No `else` follows: close the `if c then S` without an else branch.
                         let StackItem::Reduced(then_s) = stack.pop().unwrap() else {
                             unreachable!()
                         };

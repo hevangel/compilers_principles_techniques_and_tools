@@ -5,11 +5,13 @@ from enum import Enum
 import unittest
 
 
+# Static types stored in symbol-table entries and returned by the type checker.
 class Type(Enum):
     INTEGER = "Integer"
     BOOLEAN = "Boolean"
 
 
+# Expression AST nodes; syntax permits `Add` on any nodes, leaving type safety to `type_of`.
 @dataclass(frozen=True)
 class Name:
     ident: str
@@ -29,6 +31,7 @@ class Add:
 Expr = Name | IntegerLiteral | Add
 
 
+# Distinct semantic error classes for redeclaration, missing symbol, and type mismatch.
 class DuplicateError(ValueError):
     def __init__(self, name: str) -> None:
         super().__init__(f"duplicate declaration of {name}")
@@ -48,13 +51,16 @@ class ExpectedIntegerError(TypeError):
 
 
 def declare(scope: dict[str, Type], name: str, ty: Type) -> None:
+    """Bind `name` in the current scope, rejecting same-scope duplicates intact."""
     if name in scope:
         raise DuplicateError(name)
     scope[name] = ty
 
 
 def type_of(expr: Expr, scopes: list[dict[str, Type]]) -> Type:
+    """Resolve names from innermost to outermost scope and enforce integer addition."""
     if isinstance(expr, Name):
+        # Scopes are ordered outermost-to-innermost, so reverse iteration finds the nearest binding.
         for scope in reversed(scopes):
             if expr.ident in scope:
                 return scope[expr.ident]

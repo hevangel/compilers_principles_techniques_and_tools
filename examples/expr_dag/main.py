@@ -7,6 +7,7 @@ import unittest
 I64_MASK = (1 << 64) - 1
 
 
+# Two's-complement 64-bit wrapping helper so constant folding matches Rust's i64 semantics.
 def wrap_i64(value: int) -> int:
     masked = value & I64_MASK
     return masked - (1 << 64) if masked >= (1 << 63) else masked
@@ -18,6 +19,7 @@ class Op(Enum):
     MUL = "Mul"
 
 
+# Source-level expression AST nodes before value-number deduplication.
 @dataclass(frozen=True)
 class Var:
     name: str
@@ -38,6 +40,7 @@ class Bin:
 ExprAst = Var | Const | Bin
 
 
+# Basic-block statements; `PtrKill` models an opaque pointer write that could alias any array.
 @dataclass(frozen=True)
 class Assign:
     dst: str
@@ -67,6 +70,15 @@ BbStmt = Assign | ArrayRead | ArrayWrite | PtrKill
 
 
 class DagBuilder:
+    """Hash-consing DAG builder with algebraic folding and per-array alias epochs.
+
+    Invariants:
+    - `nodes` and `table` maintain a 1-to-1 bijection from canonical node tuples to integer IDs.
+    - `env` maps each variable name to the DAG node ID of its current value.
+    - `array_epoch[A]` (falling back to `global_epoch`) increments on stores so stale cached
+      `("ArrayLoad", A, idx, epoch)` nodes are never reused after a potential alias write.
+    """
+
     def __init__(self) -> None:
         self.nodes: list[tuple[object, ...]] = []
         self.table: dict[tuple[object, ...], int] = {}
@@ -75,6 +87,7 @@ class DagBuilder:
         self.global_epoch = 0
 
     def intern(self, key: tuple[object, ...]) -> int:
+        """Return the existing value number for `key`, or allocate a new DAG node ID."""
         if key in self.table:
             return self.table[key]
         idx = len(self.nodes)
@@ -83,6 +96,7 @@ class DagBuilder:
         return idx
 
     def leaf(self, name: str) -> int:
+        """Return the current value number for variable `name`, creating a Leaf on first use."""
         if name in self.env:
             return self.env[name]
         idx = self.intern(("Leaf", name))
@@ -90,6 +104,7 @@ class DagBuilder:
         return idx
 
     def lower_ast(self, ast: ExprAst) -> int:
+        """Lower an expression AST bottom-up into canonical value-numbered DAG nodes."""
         if isinstance(ast, Var):
             return self.leaf(ast.name)
         if isinstance(ast, Const):
@@ -99,6 +114,7 @@ class DagBuilder:
         return self.make_bin(ast.op, left, right)
 
     def make_bin(self, op: Op, left: int, right: int) -> int:
+        """Fold constants, apply algebraic identities, and canonicalize commutative operands."""
         lnode = self.nodes[left]
         rnode = self.nodes[right]
         if lnode[0] == "Const" and rnode[0] == "Const":
@@ -109,6 +125,8 @@ class DagBuilder:
                 return self.intern(("Const", wrap_i64(a - b)))
             return self.intern(("Const", wrap_i64(a * b)))
 
+        # Canonicalize commutative ops (+, *) by placing the smaller value number first so
+        # `a + b` and `b + a` map to the exact same tuple key.
         if op == Op.ADD:
             if lnode == ("Const", 0):
                 return right
@@ -140,6 +158,7 @@ class DagBuilder:
         counter: list[int],
         tac: list[tuple[object, ...]],
     ) -> None:
+        """Emit TAC instructions in post-order once per shared DAG node."""
         if node_id in computed:
             return
         node = self.nodes[node_id]
@@ -171,6 +190,7 @@ class DagBuilder:
         counter: list[int],
         tac: list[tuple[object, ...]],
     ) -> str:
+        """Return the TAC operand name holding `node_id`, loading constants on demand."""
         if node_id in computed:
             return computed[node_id]
         node = self.nodes[node_id]
@@ -184,6 +204,7 @@ class DagBuilder:
         return t
 
     def process_block(self, stmts: list[BbStmt]) -> list[tuple[object, ...]]:
+        """Translate basic-block statements to TAC while deduplicating loads within an epoch."""
         tac: list[tuple[object, ...]] = []
         computed: dict[int, str] = {}
         counter = [0]
@@ -207,6 +228,7 @@ class DagBuilder:
                     tac.append(("ArrayLoad", stmt.dst, stmt.array, idx_name))
                     computed[load_id] = stmt.dst
                 else:
+                    # Same array, index value, and epoch: reuse previous load via Copy.
                     tac.append(("Copy", stmt.dst, computed[load_id]))
                 self.env[stmt.dst] = load_id
             elif isinstance(stmt, ArrayWrite):
@@ -217,8 +239,10 @@ class DagBuilder:
                 idx_name = self._name_of(idx_id, computed, counter, tac)
                 val_name = self._name_of(val_id, computed, counter, tac)
                 tac.append(("ArrayStore", stmt.array, idx_name, val_name))
+                # Advance array's epoch so future reads cannot reuse pre-store cached values.
                 self.array_epoch[stmt.array] = self.array_epoch.get(stmt.array, self.global_epoch) + 1
             else:
+                # PtrKill invalidates all arrays conservatively by bumping global_epoch.
                 self.global_epoch += 1
                 self.array_epoch.clear()
         return tac

@@ -7,16 +7,21 @@ import unittest
 
 @dataclass(frozen=True)
 class AffineSubscript:
+    """One subscript dimension: `offset + sum_k coeffs[k] * i_k`."""
+
     offset: int
     coeffs: list[int]
 
 
 @dataclass(frozen=True)
 class LinearIneq:
+    """Linear half-space `sum_j coeffs[j] * x_j <= rhs` over `[i_0..i_{m-1}, i'_0..i'_{m-1}]`."""
+
     coeffs: list[int]
     rhs: int
 
     def normalize(self) -> "LinearIneq":
+        """Divide by positive GCD to keep coefficients small without changing feasibility."""
         g = abs(self.rhs)
         for c in self.coeffs:
             g = math.gcd(g, abs(c))
@@ -30,6 +35,8 @@ class LinearIneq:
 
 @dataclass
 class LoopNestQuery:
+    """Dependence query pairing write and read subscripts with rectangular + coupled bounds."""
+
     dims: int
     bounds: list[LinearIneq]
     rect_bounds: list[tuple[int, int]]
@@ -38,6 +45,7 @@ class LoopNestQuery:
 
 
 def gcd_test(write_sub: list[AffineSubscript], read_sub: list[AffineSubscript]) -> bool:
+    """Necessary Diophantine check: `gcd(w_coeffs, r_coeffs)` must divide `r.offset - w.offset`."""
     for w, r in zip(write_sub, read_sub):
         g = 0
         for c in w.coeffs + r.coeffs:
@@ -52,6 +60,11 @@ def gcd_test(write_sub: list[AffineSubscript], read_sub: list[AffineSubscript]) 
 
 
 def banerjee_test(query: LoopNestQuery) -> bool:
+    """Extreme-value interval check on rectangular bounds `[L_k, U_k]`.
+
+    Computes `[lo, hi]` of `sum_k (w_k i_k - r_k i'_k)` by picking each variable's min/max
+    endpoint independently; returns False if `r.offset - w.offset` falls outside `[lo, hi]`.
+    """
     for w, r in zip(query.write_sub, query.read_sub):
         lo = 0
         hi = 0
@@ -71,6 +84,12 @@ def banerjee_test(query: LoopNestQuery) -> bool:
 
 
 def fourier_motzkin_feasible(num_vars: int, system: list[LinearIneq]) -> bool:
+    """Eliminate variables one by one via Fourier-Motzkin projection over the reals.
+
+    Pairs every upper bound (`coeffs[var] > 0`) with every lower bound (`coeffs[var] < 0`)
+    using positive multipliers `cn * p + cp * n` so `var` cancels. A derived `0 <= negative`
+    row proves the linear system (including coupled triangular bounds) is infeasible.
+    """
     sys = list(system)
     for var in range(num_vars):
         pos = [iq for iq in sys if iq.coeffs[var] > 0]
@@ -94,6 +113,7 @@ def fourier_motzkin_feasible(num_vars: int, system: list[LinearIneq]) -> bool:
 
 
 def build_fm_system(query: LoopNestQuery) -> list[LinearIneq]:
+    """Combine loop bounds with subscript equalities split into `<=` and `>=` half-spaces."""
     nvars = query.dims * 2
     sys = list(query.bounds)
     for w, r in zip(query.write_sub, query.read_sub):
@@ -113,6 +133,7 @@ def build_fm_system(query: LoopNestQuery) -> list[LinearIneq]:
 def enumerate_dependence_vectors(
     query: LoopNestQuery, sys: list[LinearIneq]
 ) -> list[list[int]]:
+    """Enumerate integer `(i, i')` solutions inside `rect_bounds` to extract distance `i' - i`."""
     doubled = query.rect_bounds + query.rect_bounds
     out: set[tuple[int, ...]] = set()
 
@@ -133,6 +154,7 @@ def enumerate_dependence_vectors(
 
 
 def analyze_dependence(query: LoopNestQuery) -> tuple[str, list[list[int]]]:
+    """Layered dependence pipeline: GCD -> Banerjee -> Fourier-Motzkin -> integer witness search."""
     if not gcd_test(query.write_sub, query.read_sub):
         return "IndependentByGcd", []
     if not banerjee_test(query):

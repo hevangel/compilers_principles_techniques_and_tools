@@ -12,6 +12,7 @@ class Op(Enum):
 
 
 def canonical_expr(op: Op, a: str, b: str) -> tuple[Op, str, str]:
+    """Normalize operand order for commutative `+` and `*`; preserve order for `-`."""
     if op in (Op.ADD, Op.MUL) and b < a:
         return (op, b, a)
     return (op, a, b)
@@ -57,6 +58,11 @@ ExprKey = tuple[Op, str, str]
 def available_expressions(
     blocks: list[BasicBlock],
 ) -> tuple[list[set[ExprKey]], list[set[ExprKey]]]:
+    """Forward must-analysis: an expression is available iff *all* paths evaluate it without kill.
+
+    Non-entry `out_avail` sets start at `universe` (top of the intersection lattice) so
+    loop back-edges do not falsely kill loop-invariant expressions; `in_avail[0]` stays empty.
+    """
     n = len(blocks)
     preds: list[list[int]] = [[] for _ in range(n)]
     universe: set[ExprKey] = set()
@@ -67,6 +73,7 @@ def available_expressions(
             if isinstance(stmt, BinStmt):
                 universe.add(canonical_expr(stmt.op, stmt.lhs, stmt.rhs))
 
+    # Build local `e_gen` (evaluated and not later killed) and `e_kill` (operand overwritten).
     e_gen: list[set[ExprKey]] = [set() for _ in range(n)]
     e_kill: list[set[ExprKey]] = [set() for _ in range(n)]
     for b, blk in enumerate(blocks):
@@ -77,6 +84,7 @@ def available_expressions(
                     if e[1] == stmt.dst or e[2] == stmt.dst:
                         e_gen[b].discard(e)
                         e_kill[b].add(e)
+                # Only generate `key` if the assignment doesn't overwrite one of its own operands.
                 if stmt.dst != stmt.lhs and stmt.dst != stmt.rhs:
                     e_gen[b].add(key)
             elif isinstance(stmt, (ConstStmt, CopyStmt)):
@@ -96,6 +104,7 @@ def available_expressions(
                     out_avail[0] = new_out
                     changed = True
                 continue
+            # Must confluence: intersect predecessor outgoing sets.
             if not preds[b]:
                 new_in: set[ExprKey] = set()
             else:
@@ -111,8 +120,10 @@ def available_expressions(
 
 
 def global_cse(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
+    """Replace available computations with copies from materialized `_cse_k` temporaries."""
     in_avail, _ = available_expressions(blocks)
     avail_uses: set[ExprKey] = set()
+    # Pass 1: find expressions that are actually read while available.
     for b, blk in enumerate(blocks):
         cur = set(in_avail[b])
         for stmt in blk.stmts:
@@ -129,6 +140,7 @@ def global_cse(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
     temps = {k: f"_cse_{i}" for i, k in enumerate(sorted(avail_uses, key=lambda x: (x[0].value, x[1], x[2])))}
     out_blocks: list[BasicBlock] = []
     replaced = 0
+    # Pass 2: materialize `_cse_k` at non-redundant definitions and reuse it at available sites.
     for b, blk in enumerate(blocks):
         cur = set(in_avail[b])
         new_stmts: list[Stmt] = []
@@ -158,6 +170,7 @@ def global_cse(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
 
 
 def copy_propagation(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
+    """Forward must-analysis for `(dst, src)` copies; rewrites uses of `dst` to `src`."""
     n = len(blocks)
     preds: list[list[int]] = [[] for _ in range(n)]
     all_copies: set[tuple[str, str]] = set()
@@ -168,6 +181,7 @@ def copy_propagation(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
             if isinstance(stmt, CopyStmt) and stmt.dst != stmt.src:
                 all_copies.add((stmt.dst, stmt.src))
 
+    # Any write to `d` kills every copy pair `(dst, src)` mentioning `d` on either side.
     c_gen: list[set[tuple[str, str]]] = [set() for _ in range(n)]
     c_kill: list[set[tuple[str, str]]] = [set() for _ in range(n)]
     for b, blk in enumerate(blocks):
@@ -181,6 +195,7 @@ def copy_propagation(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
             if isinstance(stmt, CopyStmt) and stmt.dst != stmt.src:
                 c_gen[b].add((stmt.dst, stmt.src))
 
+    # Must-analysis: `out_c[b != 0]` starts at `all_copies`; confluence is intersection.
     in_c: list[set[tuple[str, str]]] = [set() for _ in range(n)]
     out_c: list[set[tuple[str, str]]] = [set() if b == 0 else set(all_copies) for b in range(n)]
     while True:
@@ -199,6 +214,7 @@ def copy_propagation(blocks: list[BasicBlock]) -> tuple[list[BasicBlock], int]:
         srcs = [src for dst, src in active if dst == name]
         return srcs[0] if len(srcs) == 1 else None
 
+    # Rewrite downstream uses while stepping through each block's statements in order.
     out_blocks: list[BasicBlock] = []
     propagated = 0
     for b, blk in enumerate(blocks):

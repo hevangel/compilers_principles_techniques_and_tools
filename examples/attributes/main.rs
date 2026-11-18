@@ -1,18 +1,24 @@
 //! Evaluate inherited origins and synthesized widths on a small tree.
 
+// Syntax tree of 1D layout elements: leaves carry an intrinsic width, and
+// internal Join nodes compose two subtrees left-to-right.
 enum Shape {
     Strip(u32),
     Join(Box<Shape>, Box<Shape>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
-// These attributes travel upward as the result of placing a subtree.
+// Synthesized attributes: computed bottom-up from a node and its children
+// and returned to the parent.
 struct Attributes {
     width: u32,
     placements: Vec<(u32, u32)>,
 }
 
-// The origin is inherited by this node from its context.
+// L-attributed single-pass DFS evaluator:
+// - `origin` is an inherited attribute flowing top-down from the parent/left sibling.
+// - Evaluating `left` before `right` maintains the invariant that `left.width` is
+//   already known when computing `right`'s inherited `origin + left.width`.
 fn place(shape: &Shape, origin: u32) -> Attributes {
     match shape {
         Shape::Strip(width) => Attributes {
@@ -23,7 +29,7 @@ fn place(shape: &Shape, origin: u32) -> Attributes {
             let mut left = place(left, origin);
             // The right child's inherited origin depends on the left child's synthesized width.
             let right = place(right, origin + left.width);
-            // Combine both children's synthesized results for the parent.
+            // Synthesize the parent's attributes by combining both children's results.
             left.width += right.width;
             left.placements.extend(right.placements);
             left
@@ -31,6 +37,7 @@ fn place(shape: &Shape, origin: u32) -> Attributes {
     }
 }
 
+// Builds Join(Join(Strip(2), Strip(5)), Strip(4)) to exercise nested left-to-right flow.
 fn sample() -> Shape {
     Shape::Join(
         Box::new(Shape::Join(

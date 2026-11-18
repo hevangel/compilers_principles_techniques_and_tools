@@ -10,6 +10,12 @@ def lcm(a: int, b: int) -> int:
 
 
 def nullspace_basis(matrix: list[list[int]], cols: int) -> list[list[int]]:
+    """Compute a primitive integer basis for `{v : matrix @ v = 0}` (Appendix B).
+
+    Reduces `matrix` to Reduced Row-Echelon Form over exact rationals (`Fraction`),
+    then builds one basis vector per free column by setting `v[free_col] = 1`,
+    solving `v[piv_col] = -rref[row][free_col]`, and scaling by `lcm` / dividing by `gcd`.
+    """
     rows = len(matrix)
     rref = [[Fraction(x) for x in row] for row in matrix]
     pivot_cols: list[int] = []
@@ -76,18 +82,22 @@ def mat2_vec(m: list[list[int]], v: tuple[int, int]) -> tuple[int, int]:
 
 
 def is_lex_positive(v: tuple[int, int]) -> bool:
+    """Lexicographically positive `(v[0], v[1]) >_lex 0` ensures producer precedes consumer."""
     return v[0] > 0 or (v[0] == 0 and v[1] > 0)
 
 
 def is_legal_unimodular(u: list[list[int]], deps: list[tuple[int, int]]) -> bool:
+    """Legal unimodular transform: `|det(U)| == 1` (bijection on `Z^2`) and `U d >_lex 0`."""
     return abs(det2(u)) == 1 and all(is_lex_positive(mat2_vec(u, d)) for d in deps)
 
 
 def can_tile_2d(deps: list[tuple[int, int]]) -> bool:
+    """2D rectangular tiling is legal iff all dependence distance components are >= 0."""
     return all(d[0] >= 0 and d[1] >= 0 for d in deps)
 
 
 def run_original_wavefront(rows: int, cols: int) -> list[list[int]]:
+    """Reference `(i, j)` wavefront with dependence distance `(1, -1)`."""
     a = [[r * 7 + c * 3 for c in range(cols + 2)] for r in range(rows + 2)]
     for i in range(1, rows + 1):
         for j in range(1, cols + 1):
@@ -98,6 +108,11 @@ def run_original_wavefront(rows: int, cols: int) -> list[list[int]]:
 def run_skewed_tiled_wavefront(
     rows: int, cols: int, tile_u: int, tile_v: int
 ) -> list[list[int]]:
+    """Skewed `(u, v) = (i, i + j)` tiled execution (`S = [[1, 0], [1, 1]]`).
+
+    Maps dependence `(1, -1)` to `(1, 0) >= 0`, so arbitrary `(tile_u, tile_v)` blocks
+    execute legally; loop bounds `1 <= j <= cols` become `u + 1 <= v <= u + cols`.
+    """
     a = [[r * 7 + c * 3 for c in range(cols + 2)] for r in range(rows + 2)]
     for tu in range(1, rows + 1, tile_u):
         tu_end = min(tu + tile_u - 1, rows)

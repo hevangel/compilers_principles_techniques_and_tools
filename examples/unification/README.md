@@ -11,19 +11,46 @@ python3 -m unittest examples/unification/main.py
 
 ## What the example teaches
 
+### Why we need this
+
+When a language has type inference (so programmers do not have to annotate every variable and lambda), the compiler often encounters unknown types before it knows what they stand for. Checking `f(x)` generates placeholders—type variables like `α` (`Var(0)`) and `β` (`Var(1)`)—along with equality constraints such as `(α → β) = (Int → Bool)` or chained constraints `α = β` and `β = Int`.
+
+A naive structural equality check (`==`) fails immediately because `α` is not literally `Int`. Even a simple variable-lookup table fails on two traps:
+1. **Indirect chains**: after `β = Int` and `α = β`, resolving `α` only one step returns `β` instead of `Int`.
+2. **Self-referential cycles**: solving `β = (α → Int)` after `α = β` tries to make `β` equal to `(β → Int)`—an **infinite type** that would expand forever without terminating!
+
+**First-order unification** solves equality constraints structurally while recursively following existing bindings (`resolve`) and running an **occurs check** (`occurs`) before creating any cycle.
+
 `unify` resolves known substitutions, splits matching function types into argument and result equations, and binds variables. Before binding a variable, `occurs` checks whether the proposed type already contains it.
 
 **Unification** asks whether two type expressions can be made equal by consistently substituting types for variables. For example, if `α → β` must equal `Int → Bool`, the argument positions imply `α = Int`, and the result positions imply `β = Bool`. A compiler can use this kind of solver after it has generated type constraints from a program.
 
 ### Process a list of equations
 
-1. `unify` takes an equation from a work list. `resolve` applies existing substitutions recursively, so a chain such as `α = β` followed by `β = Int` resolves the variable `α` to `Int`.
-2. Equal resolved types need no further work. Two function types contribute two new equations, one for their parameters and one for their results. Distinct concrete constructors, such as `Int` and `Bool`, produce a clash.
-3. When one side is a variable, the solver can bind it to the other side if the **occurs check** succeeds. It rejects `α = (α → Int)` because substituting the proposed type for `α` would put another `α` inside it indefinitely.
+1. `unify` pops an equation from a work list (`equations` / `work`). `resolve` applies existing substitutions recursively, so a chain such as `α = β` followed by `β = Int` resolves the variable `α` to `Int`.
+2. Equal resolved types need no further work. Two function types contribute two new equations, one for their parameters and one for their results. Distinct concrete constructors, such as `Int` and `Bool`, produce a `Clash`.
+3. When one side is a variable, the solver binds it to the other side only if the **occurs check** succeeds. It rejects `α = (α → Int)` because substituting the proposed type for `α` would put another `α` inside it indefinitely.
 
-### Follow a cycle through an existing binding
+### Follow chained bindings and indirect cycles
 
-Suppose an earlier equation bound `α` to `β`. The next equation `β = (α → Int)` resolves to `β = (β → Int)`. The occurs check catches the cycle after substitution. By contrast, if the next equation is `β = Int`, both variables resolve to `Int`. The substitution map can keep links between variables because `resolve` follows them when needed.
+Notice `equations.pop()` processes the last equation in the vector first:
+
+| Test case | Equations popped (LIFO) | `resolve` output | Substitution / Error |
+| --- | --- | --- | --- |
+| Chained binding | `(Var(0), Var(1))` | `Var(0) = Var(1)` | `subst[0] = Var(1)` |
+| (continued) | `(Var(1), Int)` | `Var(1) = Int` | `subst[1] = Int` (`resolve(Var(0)) -> Int`) |
+| Hidden cycle | `(Var(0), Var(1))` | `Var(0) = Var(1)` | `subst[0] = Var(1)` |
+| (continued) | `(Var(1), Var(0) -> Int)` | `Var(1) = (Var(1) -> Int)` | `occurs(1, Var(1) -> Int)` is true -> `InfiniteType(1)` |
+
+## How to read the code
+
+| Concept | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| Type expressions | `enum Type` (`Var`, `Int`, `Bool`, `Function`) | `TVar`, `TInt`, `TBool`, `TFunc` | Type terms to unify |
+| Substitution map | `type Substitutions = BTreeMap<u8, Type>` | `dict[int, Type]` | Maps bound type variable IDs to types |
+| Path compression / lookup | `fn resolve(ty, substitutions)` | `def resolve(ty, substitutions)` | Recursively substitutes bound variables |
+| Cycle guard | `fn occurs(id, ty)` | `def occurs(var_id, ty)` | Checks if variable appears inside proposed type |
+| Constraint solver | `fn unify(equations)` | `def unify(equations)` | Worklist loop decomposing functions and binding vars |
 
 ## What to look for
 

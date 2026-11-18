@@ -2,8 +2,10 @@
 
 use std::collections::BTreeSet;
 
+/// Canonical ordered set of NFA state IDs; equality on `States` identifies a DFA state.
 type States = BTreeSet<usize>;
 
+/// Directed NFA transition (`symbol: None` represents an epsilon edge consuming no input).
 struct Edge {
     from: usize,
     // None represents an epsilon edge, which consumes no input.
@@ -11,7 +13,7 @@ struct Edge {
     to: usize,
 }
 
-// Compute all states reachable without reading another symbol.
+// Compute all states reachable without reading another symbol (fixed-point epsilon closure).
 fn closure(mut states: States, edges: &[Edge]) -> States {
     loop {
         let previous = states.len();
@@ -20,34 +22,41 @@ fn closure(mut states: States, edges: &[Edge]) -> States {
                 states.insert(edge.to);
             }
         }
+        // Stopping when the set size stabilizes handles arbitrary epsilon chains and cycles.
         if states.len() == previous {
             return states;
         }
     }
 }
 
+/// Deterministic automaton whose states correspond 1-to-1 with `subsets[i]`.
 struct Dfa {
     subsets: Vec<States>,
+    /// `rows[state][col]` gives the next DFA state index for `ALPHABET[col]`.
     rows: Vec<Vec<usize>>,
 }
 
 const ALPHABET: [u8; 3] = *b"abc";
 const FINAL: usize = 4;
 
+/// Subset construction (powerset construction) starting from NFA state 0.
 fn determinize(edges: &[Edge]) -> Dfa {
     let mut subsets = vec![closure(States::from([0]), edges)];
     let mut rows = Vec::new();
-    // The unfinished rows act as a queue of discovered subsets.
+    // Invariant: `rows.len() <= subsets.len()`. Unfinished rows act as a BFS worklist
+    // of discovered NFA subsets waiting to have their transitions computed.
     while rows.len() < subsets.len() {
         let current = rows.len();
         let mut row = Vec::new();
         for symbol in ALPHABET {
-            // Move every possible NFA state on this symbol, then follow epsilon edges.
+            // Step 1 (move): follow all `symbol` edges out of every state in `subsets[current]`.
             let moved = edges
                 .iter()
                 .filter(|edge| edge.symbol == Some(symbol) && subsets[current].contains(&edge.from))
                 .map(|edge| edge.to)
                 .collect();
+            // Step 2 (eps-closure): include states reachable silently after moving.
+            // Note: if `moved` is empty, `next` is `{}` (the explicit dead/sink state).
             let next = closure(moved, edges);
             // Use the set itself as the identity of a DFA state.
             let index = subsets
@@ -68,17 +77,18 @@ impl Dfa {
     fn accepts(&self, input: &str) -> bool {
         let mut state = 0;
         for byte in input.bytes() {
+            // Any byte outside ALPHABET (such as non-ASCII 'é') immediately rejects.
             let Some(column) = ALPHABET.iter().position(|&symbol| symbol == byte) else {
                 return false;
             };
             state = self.rows[state][column];
         }
-        // A single accepting NFA state is enough to accept the whole string.
+        // A single accepting NFA state in the subset is enough to accept the whole string.
         self.subsets[state].contains(&FINAL)
     }
 }
 
-// Two epsilon branches model ab* | ac, with a shared accepting state.
+// Two epsilon branches model ab* | ac, with a shared accepting state (FINAL = 4).
 fn sample() -> Dfa {
     let edges = [
         (0, None, 1),

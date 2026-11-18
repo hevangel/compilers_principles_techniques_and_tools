@@ -6,21 +6,29 @@ import unittest
 
 
 class Gen(Enum):
+    """Generational partition: short-lived nursery (`YOUNG`) vs tenured long-lived (`OLD`)."""
+
     YOUNG = "Young"
     OLD = "Old"
 
 
 @dataclass
 class GenObj:
+    """Heap object tracking its generation, minor-GC survival age, and outgoing pointer slots."""
+
     tag: str
     gen: Gen
+    # Incremented on each survived minor GC; promoted to OLD when age >= age_threshold.
     age: int
     fields: list[int | None]
 
 
 class GenerationalHeap:
+    """Two-generation heap with an optional `Old -> Young` write barrier and remembered set."""
+
     def __init__(self, age_threshold: int, use_write_barrier: bool) -> None:
         self.objects: dict[int, GenObj] = {}
+        # Tracks `Old` objects that may hold pointers into `Young` so minor GC can skip scanning `Old`.
         self.remembered_set: set[int] = set()
         self.next_id = 1
         self.age_threshold = age_threshold
@@ -33,12 +41,15 @@ class GenerationalHeap:
         return oid
 
     def write_field(self, owner: int, slot: int, target: int | None) -> None:
+        """Store `target` into `owner.fields[slot]`, logging `Old -> Young` stores in `remembered_set`."""
         self.objects[owner].fields[slot] = target
         if self.use_write_barrier and self.objects[owner].gen == Gen.OLD and target is not None:
             if self.objects[target].gen == Gen.YOUNG:
                 self.remembered_set.add(owner)
 
     def minor_collect(self, roots: list[int]) -> tuple[int, int]:
+        """Collect ONLY `YOUNG` objects; `OLD` objects are untouched unless in `remembered_set`."""
+        # Seed worklist with `YOUNG` stack roots plus `YOUNG` targets referenced by `remembered_set`.
         worklist = [r for r in roots if r in self.objects and self.objects[r].gen == Gen.YOUNG]
         for rem in sorted(self.remembered_set):
             if rem in self.objects:
@@ -46,6 +57,7 @@ class GenerationalHeap:
                     if child is not None and child in self.objects and self.objects[child].gen == Gen.YOUNG:
                         worklist.append(child)
 
+        # Trace only within the young nursery.
         live_young: set[int] = set()
         while worklist:
             oid = worklist.pop()
@@ -56,10 +68,12 @@ class GenerationalHeap:
                 if child is not None and child in self.objects and self.objects[child].gen == Gen.YOUNG:
                     worklist.append(child)
 
+        # Sweep: delete dead `YOUNG` objects; `OLD` objects are never freed by a minor GC.
         young_before = sum(1 for o in self.objects.values() if o.gen == Gen.YOUNG)
         for oid in [k for k, o in self.objects.items() if o.gen == Gen.YOUNG and k not in live_young]:
             del self.objects[oid]
 
+        # Age surviving young objects and promote those reaching `age_threshold`.
         promoted = 0
         for oid in sorted(live_young):
             obj = self.objects[oid]
@@ -68,6 +82,8 @@ class GenerationalHeap:
                 obj.gen = Gen.OLD
                 promoted += 1
 
+        # Refresh remembered_set: newly promoted OLD objects might point to YOUNG, and
+        # previously remembered OLD objects may no longer have any YOUNG children.
         if self.use_write_barrier:
             self.remembered_set = {
                 oid
@@ -84,12 +100,16 @@ class GenerationalHeap:
 
 
 class Color(Enum):
+    """Tri-color marking states: WHITE (unvisited), GRAY (worklist), BLACK (scanned)."""
+
     WHITE = "White"
     GRAY = "Gray"
     BLACK = "Black"
 
 
 class TriColorHeap:
+    """Incremental marker demonstrating Dijkstra's insertion write barrier."""
+
     def __init__(self, nodes: list[int], edges: list[tuple[int, int]]) -> None:
         self.colors: dict[int, Color] = {n: Color.WHITE for n in nodes}
         self.edges: dict[int, list[int]] = {n: [] for n in nodes}
@@ -97,6 +117,7 @@ class TriColorHeap:
             self.edges[u].append(v)
 
     def step_mark(self) -> bool:
+        """Advance marking by one node: gray its white neighbors, then darken it to BLACK."""
         grays = [k for k in sorted(self.colors) if self.colors[k] == Color.GRAY]
         if not grays:
             return False
@@ -108,11 +129,13 @@ class TriColorHeap:
         return True
 
     def mutator_add_edge(self, frm: int, to: int) -> None:
+        """Dijkstra insertion barrier: linking BLACK -> WHITE re-grays `to` to preserve reachability."""
         self.edges[frm].append(to)
         if self.colors[frm] == Color.BLACK and self.colors[to] == Color.WHITE:
             self.colors[to] = Color.GRAY
 
     def has_black_to_white_violation(self) -> bool:
+        """Check strong tri-color invariant: no BLACK node may point directly to a WHITE node."""
         return any(
             self.colors[u] == Color.BLACK and self.colors[v] == Color.WHITE
             for u, vs in self.edges.items()
@@ -121,11 +144,12 @@ class TriColorHeap:
 
 
 def naive_refcount_cycle_leak() -> int:
-    rc = [1, 1]
-    rc[1] += 1
-    rc[0] += 1
-    rc[0] -= 1
-    rc[1] -= 1
+    """Demonstrate why naive reference counting leaks unreachable 2-cycles (`rc` stays 1)."""
+    rc = [1, 1]  # external roots to node 0 and node 1
+    rc[1] += 1  # edge 0 -> 1
+    rc[0] += 1  # edge 1 -> 0
+    rc[0] -= 1  # drop external root to 0
+    rc[1] -= 1  # drop external root to 1
     return sum(1 for c in rc if c > 0)
 
 

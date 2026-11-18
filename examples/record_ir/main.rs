@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+/// Source type representation supporting primitives and arbitrarily nested records/unions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Type {
     U8,
@@ -11,6 +12,7 @@ enum Type {
     Union(Vec<(String, Type)>),
 }
 
+/// Byte placement of a single struct or union member.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FieldLayout {
     name: String,
@@ -19,6 +21,7 @@ struct FieldLayout {
     align: usize,
 }
 
+/// Summary of an aggregated type's ABI size, required alignment, and padding waste.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RecordLayout {
     size: usize,
@@ -27,6 +30,7 @@ struct RecordLayout {
     fields: Vec<FieldLayout>,
 }
 
+/// Rounds `offset` up to the next multiple of `align` (if `align > 1`).
 fn align_up(offset: usize, align: usize) -> usize {
     if align <= 1 {
         offset
@@ -35,6 +39,7 @@ fn align_up(offset: usize, align: usize) -> usize {
     }
 }
 
+/// Computes natural C-style field offsets, alignment, and total padded size for `ty`.
 fn layout_type(ty: &Type) -> RecordLayout {
     match ty {
         Type::U8 => RecordLayout {
@@ -57,11 +62,14 @@ fn layout_type(ty: &Type) -> RecordLayout {
         },
         Type::Struct(members) => {
             let mut cursor = 0usize;
+            // A struct's alignment equals the maximum alignment among its members so every
+            // member remains properly aligned whenever the struct itself starts at an aligned address.
             let mut max_align = 1usize;
             let mut payload = 0usize;
             let mut fields = Vec::with_capacity(members.len());
             for (name, mty) in members {
                 let m = layout_type(mty);
+                // Insert internal padding before this field if `cursor` isn't a multiple of `m.align`.
                 let off = align_up(cursor, m.align);
                 max_align = max_align.max(m.align);
                 payload += m.size;
@@ -73,6 +81,8 @@ fn layout_type(ty: &Type) -> RecordLayout {
                 });
                 cursor = off + m.size;
             }
+            // Tail padding rounds total size up to a multiple of `max_align` so consecutive
+            // elements in an array of this struct stay aligned (`max(1)` avoids zero-sized ambiguity).
             let total = align_up(cursor, max_align).max(1);
             let padding_bytes = total.saturating_sub(payload);
             RecordLayout {
@@ -90,6 +100,7 @@ fn layout_type(ty: &Type) -> RecordLayout {
                 let m = layout_type(mty);
                 max_size = max_size.max(m.size);
                 max_align = max_align.max(m.align);
+                // All union variants share offset 0 in memory.
                 fields.push(FieldLayout {
                     name: name.clone(),
                     offset: 0,
@@ -97,6 +108,7 @@ fn layout_type(ty: &Type) -> RecordLayout {
                     align: m.align,
                 });
             }
+            // Union size must hold its largest variant AND be a multiple of its strictest alignment.
             let total = align_up(max_size, max_align);
             let max_member = fields.iter().map(|f| f.size).max().unwrap_or(0);
             RecordLayout {
@@ -115,13 +127,16 @@ enum BinOp {
     Mul,
 }
 
+/// High-level expression AST lowered to three-address IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Expr {
     Var(String),
+    /// Address computation `base + constant_field_offset`.
     FieldAddr(String, usize),
     Bin(BinOp, Box<Expr>, Box<Expr>),
 }
 
+/// Four-field three-address instruction `(op, arg1, arg2, result)` using explicit temporary names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Quadruple {
     op: String,
@@ -130,13 +145,16 @@ struct Quadruple {
     result: String,
 }
 
+/// Operand reference inside a `Triple`: source variable, constant, or another triple's table index.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ArgRef {
     Sym(String),
     Const(usize),
+    /// Positional reference to the value computed by `triples[idx]`.
     TripleIdx(usize),
 }
 
+/// Three-field instruction whose result is implicitly named by its position `(idx)` in `triples`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Triple {
     op: String,
@@ -144,12 +162,14 @@ struct Triple {
     arg2: ArgRef,
 }
 
+/// Separates storage of triples (fixed indices so `TripleIdx` stays valid) from execution order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct IndirectTriples {
     triples: Vec<Triple>,
     order: Vec<usize>,
 }
 
+/// Lowers AST statements into `Quadruple` form, allocating fresh `t0, t1, ...` temporaries.
 fn lower_to_quads(stmts: &[(String, Expr)]) -> Vec<Quadruple> {
     fn emit_expr(expr: &Expr, next_t: &mut usize, out: &mut Vec<Quadruple>) -> String {
         match expr {
@@ -197,6 +217,7 @@ fn lower_to_quads(stmts: &[(String, Expr)]) -> Vec<Quadruple> {
     out
 }
 
+/// Lowers AST statements into `IndirectTriples`, avoiding temporary names while allowing motion via `order`.
 fn lower_to_triples(stmts: &[(String, Expr)]) -> IndirectTriples {
     fn emit_expr(expr: &Expr, triples: &mut Vec<Triple>) -> ArgRef {
         match expr {
@@ -239,6 +260,7 @@ fn lower_to_triples(stmts: &[(String, Expr)]) -> IndirectTriples {
     IndirectTriples { triples, order }
 }
 
+/// Executes a sequence of `Quadruple` instructions given an initial variable environment.
 fn eval_quads(quads: &[Quadruple], initial: &[(&str, i64)]) -> BTreeMap<String, i64> {
     let mut env: BTreeMap<String, i64> = initial.iter().map(|&(k, v)| (k.to_string(), v)).collect();
     let get = |s: &str, env: &BTreeMap<String, i64>| -> i64 {
@@ -258,8 +280,11 @@ fn eval_quads(quads: &[Quadruple], initial: &[(&str, i64)]) -> BTreeMap<String, 
     env
 }
 
+/// Executes `IndirectTriples` following `it.order` (not necessarily `0..triples.len()`).
 fn eval_indirect_triples(it: &IndirectTriples, initial: &[(&str, i64)]) -> BTreeMap<String, i64> {
     let mut env: BTreeMap<String, i64> = initial.iter().map(|&(k, v)| (k.to_string(), v)).collect();
+    // Keyed by fixed triple table index `idx`, so reordering `it.order` preserves def-use lookups
+    // whenever every definition still runs before its uses.
     let mut results: BTreeMap<usize, i64> = BTreeMap::new();
     let resolve =
         |a: &ArgRef, env: &BTreeMap<String, i64>, results: &BTreeMap<usize, i64>| -> i64 {

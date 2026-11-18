@@ -6,6 +6,8 @@ import unittest
 
 
 class LatticeKind(Enum):
+    """Three-level flat constant-propagation semilattice: TOP > CONST(c) > BOTTOM."""
+
     TOP = "Top"
     CONST = "Const"
     BOTTOM = "Bottom"
@@ -26,6 +28,7 @@ def const(v: int) -> ConstVal:
 
 
 def meet(a: ConstVal, b: ConstVal) -> ConstVal:
+    """Semilattice meet (`a /\\ b`): TOP is identity, BOTTOM is absorbing, unequal constants drop to BOTTOM."""
     if a == TOP:
         return b
     if b == TOP:
@@ -73,6 +76,7 @@ class BasicBlock:
 
 
 def eval_rhs(rhs: Rhs, env: dict[str, ConstVal]) -> ConstVal:
+    """Monotone transfer function for one RHS expression over abstract environment `env`."""
     if isinstance(rhs, RhsConst):
         return const(rhs.val)
     if isinstance(rhs, RhsVar):
@@ -84,6 +88,7 @@ def eval_rhs(rhs: Rhs, env: dict[str, ConstVal]) -> ConstVal:
             assert l.val is not None and r.val is not None
             return const(l.val + r.val)
     else:
+        # Check `0` before `BOTTOM` so `NAC * 0` safely folds to `Const(0)`.
         if (l.kind == LatticeKind.CONST and l.val == 0) or (
             r.kind == LatticeKind.CONST and r.val == 0
         ):
@@ -97,6 +102,7 @@ def eval_rhs(rhs: Rhs, env: dict[str, ConstVal]) -> ConstVal:
 
 
 def transfer_block(stmts: list[Stmt], initial: dict[str, ConstVal]) -> dict[str, ConstVal]:
+    """Apply block statements sequentially to produce the exit abstract environment."""
     env = dict(initial)
     for s in stmts:
         env[s.dst] = eval_rhs(s.rhs, env)
@@ -106,6 +112,12 @@ def transfer_block(stmts: list[Stmt], initial: dict[str, ConstVal]) -> dict[str,
 def solve_mfp(
     blocks: list[BasicBlock], initial: dict[str, ConstVal]
 ) -> tuple[list[dict[str, ConstVal]], list[dict[str, ConstVal]]]:
+    """Iterative Maximum Fixed Point (MFP) solver initialized optimistically at TOP.
+
+    Meets predecessor outputs pointwise per variable before each block's transfer.
+    Because constant propagation is monotone but non-distributive, MFP <= MOP
+    (always sound, though strictly less precise than MOP on correlated branches).
+    """
     n = len(blocks)
     preds: list[list[int]] = [[] for _ in range(n)]
     all_vars = set(initial.keys())
@@ -148,6 +160,7 @@ def solve_mfp(
 def solve_mop_acyclic(
     blocks: list[BasicBlock], target: int, initial: dict[str, ConstVal]
 ) -> dict[str, ConstVal]:
+    """Exact Meet-Over-All-Paths (MOP) solver for acyclic CFGs via full path enumeration."""
     paths: list[dict[str, ConstVal]] = []
 
     def dfs(b: int, env: dict[str, ConstVal]) -> None:
@@ -170,6 +183,7 @@ def solve_mop_acyclic(
 
 
 def fold_blocks(blocks: list[BasicBlock], in_env: list[dict[str, ConstVal]]) -> list[BasicBlock]:
+    """Replace any RHS whose abstract value is `Const(c)` with a constant literal."""
     out_blocks = []
     for b, blk in enumerate(blocks):
         env = dict(in_env[b])
@@ -184,6 +198,7 @@ def fold_blocks(blocks: list[BasicBlock], in_env: list[dict[str, ConstVal]]) -> 
 
 
 def nondistributivity_witness() -> list[BasicBlock]:
+    """Build `if c { x = 2; y = 3 } else { x = 3; y = 2 }; z = x + y` (§9.4.5)."""
     return [
         BasicBlock([], [1, 2]),
         BasicBlock([Stmt("x", RhsConst(2)), Stmt("y", RhsConst(3))], [3]),
@@ -206,9 +221,11 @@ class ConstPropTests(unittest.TestCase):
         init = {"c": BOTTOM}
         _, mfp_out = solve_mfp(cfg, init)
         mop_out = solve_mop_acyclic(cfg, 3, init)
+        # MFP meets x and y separately to BOTTOM before evaluating `z = x + y`.
         self.assertEqual(mfp_out[3]["x"], BOTTOM)
         self.assertEqual(mfp_out[3]["y"], BOTTOM)
         self.assertEqual(mfp_out[3]["z"], BOTTOM)
+        # MOP evaluates `x + y = 5` on each path before joining, obtaining `Const(5)`.
         self.assertEqual(mop_out["z"], const(5))
 
     def test_folds_loop_constants_and_nac_times_zero(self) -> None:
@@ -223,6 +240,7 @@ class ConstPropTests(unittest.TestCase):
         init = {"param": BOTTOM}
         in_env, out_env = solve_mfp(cfg, init)
         self.assertEqual(out_env[1]["c"], const(4))
+        # `param * 0` folds to `0` even though `param` is `BOTTOM` (NAC).
         self.assertEqual(out_env[2]["z"], const(0))
         folded = fold_blocks(cfg, in_env)
         self.assertEqual(folded[2].stmts[0].rhs, RhsConst(0))
@@ -230,3 +248,4 @@ class ConstPropTests(unittest.TestCase):
 
 if __name__ == "__main__":
     main()
+

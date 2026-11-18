@@ -9,6 +9,7 @@ enum BinOp {
     Lt,
 }
 
+// Pre-SSA CFG types: variables are mutable names that may be assigned in multiple blocks.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Rhs {
     Const(i64),
@@ -39,6 +40,7 @@ struct BasicBlock {
     term: Term,
 }
 
+// SSA variable: `(base_name, version)`. Version 0 represents an initial/unassigned parameter.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct SsaVar {
     name: String,
@@ -52,6 +54,8 @@ enum SsaRhs {
     Bin(BinOp, SsaVar, SsaVar),
 }
 
+// Merge instruction placed at block entry: selects `incoming[pred]` depending on which
+// predecessor block transferred control here. All phis in a block execute simultaneously.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Phi {
     dst: SsaVar,
@@ -82,6 +86,7 @@ struct SsaBlock {
     term: SsaTerm,
 }
 
+// Complete SSA CFG along with the dominance analysis artifacts used to construct and verify it.
 struct SsaProgram {
     blocks: Vec<SsaBlock>,
     preds: Vec<Vec<usize>>,
@@ -116,6 +121,10 @@ struct DomTree {
     children: Vec<Vec<usize>>,
 }
 
+// Iterative dataflow computation of dominators over reachable blocks:
+//   Dom(0) = {0}
+//   Dom(b) = {b} U (intersection of Dom(p) over reachable predecessors p)
+// Restricting to `reachable` guarantees unreachable blocks do not distort intersections.
 fn compute_dominators(
     num_blocks: usize,
     preds: &[Vec<usize>],
@@ -182,6 +191,10 @@ fn compute_dominators(
     }
 }
 
+// Compute dominance frontiers using the Cooper-Harvey-Kennedy algorithm:
+// At every join block `b` (>= 2 reachable predecessors), walk up the dominator tree from each
+// predecessor `p` until reaching `idom[b]`. Every visited node `r` dominates `p` (a predecessor
+// of `b`) without strictly dominating `b`, so `b` belongs to `DF[r]`.
 fn compute_dominance_frontiers(
     preds: &[Vec<usize>],
     idom: &[Option<usize>],
@@ -210,6 +223,11 @@ fn compute_dominance_frontiers(
     df
 }
 
+// Convert a CFG into minimal pruned SSA form in 4 phases:
+// 1. Reachability + dominator tree + dominance frontiers.
+// 2. Backward liveness analysis (`live_in`) to prune dead phis.
+// 3. Iterated dominance frontier worklist to place phis.
+// 4. Dominator-tree DFS renaming with per-variable version stacks.
 fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
     let n = cfg.len();
     let mut preds = vec![Vec::new(); n];
@@ -219,7 +237,7 @@ fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
         }
     }
 
-    // Reachable blocks from entry 0.
+    // Reachable blocks from entry 0 (unreachable blocks are stripped from SSA).
     let mut reachable = BTreeSet::from([0usize]);
     let mut stack = vec![0usize];
     while let Some(b) = stack.pop() {
@@ -308,7 +326,9 @@ fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
         }
     }
 
-    // Minimal (pruned) phi placement.
+    // Minimal (pruned) phi placement via iterated dominance frontier worklist:
+    // only insert a phi for `var` at merge block `y` if `var` is live-in at `y`,
+    // while continuing to propagate through `DF[y]` for downstream merges.
     let mut phi_vars: Vec<BTreeSet<String>> = vec![BTreeSet::new(); n];
     for (var, def_blocks) in &defs {
         let mut has_phi = BTreeSet::new();
@@ -396,6 +416,9 @@ fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
         .collect();
 
     // Step 3: Dominator-tree DFS variable renaming.
+    // Invariant: `stacks[name].last()` always holds the reaching definition of `name`
+    // at the current point in the dominator tree. Any version pushed in block `b` is
+    // popped when leaving `b`'s dominator subtree so sibling branches remain isolated.
     let mut counters: BTreeMap<String, usize> = BTreeMap::new();
     let mut stacks: BTreeMap<String, Vec<usize>> = BTreeMap::new();
 
@@ -450,6 +473,7 @@ fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
             SsaTerm::Return(v) => v.ver = current_ver(&v.name, stacks),
         }
 
+        // Fill phi incoming arguments on outgoing CFG edges using the active versions at the end of `b`.
         for succ in successors_of(&cfg[b].term) {
             for phi in &mut ssa_blocks[succ].phis {
                 let ver = current_ver(&phi.dst.name, stacks);
@@ -490,6 +514,11 @@ fn to_ssa(cfg: &[BasicBlock]) -> SsaProgram {
     }
 }
 
+// Verify the two core SSA invariants:
+// 1. Single definition: every SsaVar (with ver > 0) is defined at most once globally.
+// 2. Strict dominance: every use in block B is dominated by its definition block; for a phi
+//    incoming value from predecessor P, the "use" conceptually occurs on edge P -> B, so it must
+//    be dominated by P (not B).
 fn verify_ssa(ssa: &SsaProgram) -> Result<(), String> {
     let mut def_block: BTreeMap<SsaVar, usize> = BTreeMap::new();
     for (b, blk) in ssa.blocks.iter().enumerate() {
@@ -549,6 +578,9 @@ fn verify_ssa(ssa: &SsaProgram) -> Result<(), String> {
     Ok(())
 }
 
+// Sparse-style constant propagation over SSA: because each SsaVar has a single definition,
+// known constants go straight into a global map without per-block reaching-definition sets.
+// A phi is constant if all its incoming versions resolve to the same constant.
 fn fold_ssa_constants(ssa: &mut SsaProgram) {
     loop {
         let mut consts: BTreeMap<SsaVar, i64> = BTreeMap::new();
@@ -610,6 +642,12 @@ fn ssa_lowered_name(v: &SsaVar) -> String {
     }
 }
 
+// Lower SSA back into an executable non-SSA CFG by replacing phi nodes with edge copies.
+// Two subtle cases are handled:
+// 1. Parallel-copy swap problem: all phis at a block entry read their inputs simultaneously, so
+//    copies first stage values into `__phi_tmp_*` before writing destinations.
+// 2. Critical edges: if predecessor `pred` ends in a Branch (2 successors), appending copies to
+//    `pred` would run on the wrong branch too, so a trampoline block is spliced onto the edge.
 fn de_ssa(ssa: &SsaProgram) -> Vec<BasicBlock> {
     let mut blocks: Vec<BasicBlock> = ssa
         .blocks

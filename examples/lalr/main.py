@@ -6,11 +6,15 @@ import unittest
 
 @dataclass(frozen=True)
 class Nt:
+    """Nonterminal ID indexing into `first` / `follow` arrays."""
+
     id: int
 
 
 @dataclass(frozen=True)
 class Term:
+    """Terminal ID (`0` is reserved for EOF sentinel `$`)."""
+
     id: int
 
 
@@ -19,6 +23,8 @@ Symbol = Nt | Term
 
 @dataclass(frozen=True)
 class Lr1Item:
+    """Canonical LR(1) item `[prod: A -> alpha . beta, lookahead]`."""
+
     prod: int
     dot: int
     lookahead: int
@@ -26,11 +32,15 @@ class Lr1Item:
 
 @dataclass(frozen=True)
 class Action:
+    """Parse table action (`Shift`, `Reduce`, or `Accept`)."""
+
     kind: str  # "Shift", "Reduce", "Accept"
     value: int | None = None
 
 
 class Grammar:
+    """Integer-indexed CFG with augmented start nonterminal `0` and production `0`."""
+
     def __init__(
         self,
         num_nt: int,
@@ -92,6 +102,7 @@ class Grammar:
     def closure_lr1(
         self, items: set[Lr1Item], first: list[tuple[set[int], bool]]
     ) -> frozenset[Lr1Item]:
+        """Expand `[A -> alpha . B beta, a]` with `[B -> . gamma, b]` for `b in FIRST(beta a)`."""
         current = set(items)
         while True:
             prev = len(current)
@@ -101,6 +112,7 @@ class Grammar:
                 if item.dot < len(rhs) and isinstance(rhs[item.dot], Nt):
                     b_nt = rhs[item.dot]
                     assert isinstance(b_nt, Nt)
+                    # Appending `Term(item.lookahead)` passes `a` through whenever `beta` is nullable.
                     suffix = [*rhs[item.dot + 1 :], Term(item.lookahead)]
                     lookaheads, _ = self.first_of_seq(suffix, first)
                     for pid, (lhs, _) in enumerate(self.prods):
@@ -117,6 +129,7 @@ class Grammar:
         sym: Symbol,
         first: list[tuple[set[int], bool]],
     ) -> frozenset[Lr1Item]:
+        """Shift dot past `sym` (keeping item lookaheads) and close under `closure_lr1`."""
         kernel = {
             Lr1Item(it.prod, it.dot + 1, it.lookahead)
             for it in items
@@ -127,6 +140,8 @@ class Grammar:
 
 @dataclass
 class ParseTable:
+    """Action/Goto table together with any detected shift/reduce or reduce/reduce conflicts."""
+
     num_states: int
     actions: dict[tuple[int, int], Action]
     goto: dict[tuple[int, int], int]
@@ -135,6 +150,8 @@ class ParseTable:
 
 @dataclass
 class CompactTable:
+    """Sparse action table using `default_reduce` on reduce-only rows."""
+
     dense_entries: int
     compact_entries: int
     default_reduce: list[int | None]
@@ -142,6 +159,7 @@ class CompactTable:
 
 
 def compact_table(table: ParseTable, num_terms: int) -> CompactTable:
+    """Hoist the majority reduction per reduce-only state to shrink stored table entries."""
     default_reduce: list[int | None] = [None] * table.num_states
     explicit_actions: dict[tuple[int, int], Action] = {}
     for state in range(table.num_states):
@@ -155,6 +173,7 @@ def compact_table(table: ParseTable, num_terms: int) -> CompactTable:
                     counts[act.value] = counts.get(act.value, 0) + 1
                 else:
                     has_shift_or_accept = True
+        # Only rows with no Shift or Accept can safely supply a default reduction.
         best_reduce = (
             max(counts.items(), key=lambda kv: (kv[1], -kv[0]))[0]
             if not has_shift_or_accept and counts
@@ -178,6 +197,7 @@ def compact_table(table: ParseTable, num_terms: int) -> CompactTable:
 def build_lr1_collection(
     g: Grammar,
 ) -> tuple[list[frozenset[Lr1Item]], dict[tuple[int, Symbol], int]]:
+    """Build the canonical LR(1) state collection starting from `[S' -> . S, $]`."""
     first = g.first_sets()
     start = g.closure_lr1({Lr1Item(0, 0, 0)}, first)
     states = [start]
@@ -246,6 +266,7 @@ def build_lr1_table(g: Grammar) -> ParseTable:
 
 
 def build_lalr1_table(g: Grammar) -> ParseTable:
+    """Merge LR(1) states sharing the same `(prod, dot)` core and unite their lookaheads."""
     lr1_states, lr1_trans = build_lr1_collection(g)
     cores: list[frozenset[tuple[int, int]]] = []
     core_of = [0] * len(lr1_states)
@@ -267,6 +288,7 @@ def build_lalr1_table(g: Grammar) -> ParseTable:
 
 
 def build_slr1_table(g: Grammar) -> ParseTable:
+    """Build SLR(1) over LR(0) cores using `FOLLOW(LHS)` for completed items."""
     first = g.first_sets()
     follow = g.follow_sets(first)
     lr1_states, lr1_trans = build_lr1_collection(g)
@@ -302,6 +324,7 @@ def build_slr1_table(g: Grammar) -> ParseTable:
 
 
 def parse(g: Grammar, table: ParseTable, tokens: list[int]) -> list[int]:
+    """Run the LR shift-reduce driver on `tokens` using a conflict-free `ParseTable`."""
     if table.conflicts:
         raise ValueError(f"grammar has {len(table.conflicts)} conflicts")
     stream = [*tokens, 0]

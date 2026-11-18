@@ -7,12 +7,15 @@ I64_MASK = (1 << 64) - 1
 
 
 def wrap_i64(value: int) -> int:
+    """Truncate Python arbitrary-precision int to signed 64-bit two's complement (matching Rust)."""
     masked = value & I64_MASK
     return masked - (1 << 64) if masked >= (1 << 63) else masked
 
 
 @dataclass
 class Trace:
+    """Spatial-locality proxy counting consecutive reads where `index == previous + 1` (stride 1)."""
+
     previous: int | None = None
     adjacent: int = 0
     total: int = 0
@@ -25,6 +28,7 @@ class Trace:
 
 
 def original(a: list[int], b: list[int], n: int) -> tuple[list[int], Trace]:
+    """`i, j, k` order: inner `k` loop strides down a column of row-major `B` by `+n`."""
     c = [0] * (n * n)
     trace = Trace()
     for i in range(n):
@@ -37,6 +41,8 @@ def original(a: list[int], b: list[int], n: int) -> tuple[list[int], Trace]:
 
 
 def interchanged(a: list[int], b: list[int], n: int) -> tuple[list[int], Trace]:
+    """`i, k, j` order: legal because `C` is disjoint from `A, B` and each `C[i, j]`
+    still sums in increasing `k` order; inner `j` loop walks `B` and `C` with stride 1."""
     c = [0] * (n * n)
     trace = Trace()
     for i in range(n):

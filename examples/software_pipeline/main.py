@@ -7,9 +7,11 @@ import unittest
 
 @dataclass(frozen=True)
 class LoopOp:
+    """Single instruction in the inner loop body."""
+
     op_id: int
     name: str
-    unit: str
+    unit: str  # Functional unit required ("Alu" or "Mem").
     latency: int
     kind: str
     args: tuple[int, ...]
@@ -17,14 +19,18 @@ class LoopOp:
 
 @dataclass(frozen=True)
 class DepEdge:
+    """Dependence `src -> dst` requiring `S(src) + latency <= S(dst) + dist * II`."""
+
     src: int
     dst: int
     latency: int
-    dist: int
+    dist: int  # 0 = intra-iteration dependence; >=1 = loop-carried across `dist` iterations.
 
 
 @dataclass
 class LoopKernel:
+    """Loop body operations, dependence graph, and hardware unit capacities."""
+
     ops: list[LoopOp]
     edges: list[DepEdge]
     capacities: dict[str, int]
@@ -32,6 +38,8 @@ class LoopKernel:
 
 @dataclass
 class ModuloSchedule:
+    """Cyclic schedule metadata plus Modular Variable Expansion (MVE) unroll factor."""
+
     ii: int
     mii_res: int
     mii_rec: int
@@ -41,6 +49,7 @@ class ModuloSchedule:
 
 
 def compute_mii_res(ops: list[LoopOp], capacities: dict[str, int]) -> int:
+    """Resource lower bound: MII_res = max_u ceil(ops_u / cap_u)."""
     counts: dict[str, int] = {}
     for op in ops:
         counts[op.unit] = counts.get(op.unit, 0) + 1
@@ -52,6 +61,10 @@ def compute_mii_res(ops: list[LoopOp], capacities: dict[str, int]) -> int:
 
 
 def compute_mii_rec(n: int, edges: list[DepEdge]) -> int:
+    """Recurrence lower bound: MII_rec = max_C ceil(sum L / sum D) over elementary cycles.
+
+    Uses `e.dst > start` canonicalization so each simple cycle is visited once.
+    """
     adj: list[list[DepEdge]] = [[] for _ in range(n)]
     for e in edges:
         adj[e.src].append(e)
@@ -79,6 +92,14 @@ def compute_mii_rec(n: int, edges: list[DepEdge]) -> int:
 
 
 def modulo_schedule(kernel: LoopKernel) -> ModuloSchedule:
+    """Find minimal II >= max(MII_res, MII_rec) with a valid modulo reservation table.
+
+    Invariants:
+    - Modulo resource slot `c % II` never exceeds `capacities[unit]`.
+    - Dependence inequality `S(u) + L - D * II <= S(v)` holds for all edges.
+    - `unroll_factor = ceil((max_span + 1) / II)` gives enough MVE register banks so
+      overlapping iterations never overwrite a live value before its consumer reads it.
+    """
     mii_res = compute_mii_res(kernel.ops, kernel.capacities)
     mii_rec = compute_mii_rec(len(kernel.ops), kernel.edges)
     ii = max(mii_res, mii_rec)
@@ -115,6 +136,7 @@ def modulo_schedule(kernel: LoopKernel) -> ModuloSchedule:
 
         if backtrack(0):
             starts = [s for s in schedule if s is not None]
+            # Stage of op is `start // II`; total overlapping stages is `max(stage) + 1`.
             num_stages = max((c // ii + 1 for c in starts), default=1)
             max_span = 0
             for e in kernel.edges:
@@ -129,6 +151,8 @@ def modulo_schedule(kernel: LoopKernel) -> ModuloSchedule:
 
 @dataclass(frozen=True)
 class ScheduledInst:
+    """One scheduled instruction copy tagged with its pipeline stage and MVE register bank."""
+
     op_id: int
     name: str
     iter_offset: int
@@ -138,6 +162,8 @@ class ScheduledInst:
 
 @dataclass
 class PipelinedProgram:
+    """Ramp-up prologue, MVE-unrolled steady-state kernel, and drain epilogue."""
+
     schedule: ModuloSchedule
     prologue: list[ScheduledInst]
     kernel_body: list[list[ScheduledInst]]

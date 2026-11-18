@@ -14,6 +14,8 @@ fn gcd(mut a: i64, mut b: i64) -> i64 {
     a
 }
 
+/// Exact reduced rational number (`den > 0`, `gcd(|num|, den) == 1`).
+/// Used in RREF elimination so division by pivot elements never introduces rounding errors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Rational {
     num: i64,
@@ -82,7 +84,10 @@ fn lcm(a: i64, b: i64) -> i64 {
     }
 }
 
-// Appendix B: Reduce matrix M to reduced row-echelon form and extract integer nullspace basis `M v = 0`.
+/// Appendix B: Reduce matrix `M` to Reduced Row-Echelon Form (RREF) over `Q`
+/// and extract a primitive integer basis for the nullspace `{v : M v = 0}`.
+/// Each free column `f` yields one basis vector by setting `v[f] = 1`, all other free
+/// variables to `0`, and solving `v[piv_col] = -rref[row][f]`, then clearing denominators via `lcm`.
 fn nullspace_basis(matrix: &[Vec<i64>], cols: usize) -> Vec<Vec<i64>> {
     let rows = matrix.len();
     let mut rref: Vec<Vec<Rational>> = matrix
@@ -105,6 +110,7 @@ fn nullspace_basis(matrix: &[Vec<i64>], cols: usize) -> Vec<Vec<i64>> {
             *cell = *cell / scale;
         }
         let pivot_row = rref[r].clone();
+        // Eliminate both above and below the pivot so `rref` reaches full reduced row-echelon form.
         for (i, row) in rref.iter_mut().enumerate() {
             if i != r && !row[c].is_zero() {
                 let factor = row[c];
@@ -128,6 +134,7 @@ fn nullspace_basis(matrix: &[Vec<i64>], cols: usize) -> Vec<Vec<i64>> {
         for (row_idx, &piv_col) in pivot_cols.iter().enumerate() {
             vec_r[piv_col] = Rational::from_int(0) - rref[row_idx][free_col];
         }
+        // Clear rational denominators and reduce by GCD to obtain a canonical primitive integer vector.
         let mut mult = 1i64;
         for val in &vec_r {
             mult = lcm(mult, val.den);
@@ -176,20 +183,27 @@ fn mat2_vec(m: Mat2, v: [i64; 2]) -> [i64; 2] {
     ]
 }
 
+/// Lexicographically positive `(v[0], v[1]) >_lex (0, 0)` guarantees the transformed
+/// producer executes strictly earlier than the consumer in sequential loop order.
 fn is_lex_positive(v: [i64; 2]) -> bool {
     v[0] > 0 || (v[0] == 0 && v[1] > 0)
 }
 
+/// A 2D loop transform `U` is a legal unimodular transform iff:
+/// 1. `|det(U)| == 1` (maps `Z^2` bijectively onto `Z^2` with an integer inverse, no holes/duplicates),
+/// 2. Every transformed dependence `U * d` remains lexicographically positive.
 fn is_legal_unimodular(u: Mat2, deps: &[[i64; 2]]) -> bool {
     det2(u).abs() == 1 && deps.iter().all(|&d| is_lex_positive(mat2_vec(u, d)))
 }
 
+/// Rectangular 2D tiling is legal iff every dependence component is non-negative (`d[0] >= 0 && d[1] >= 0`),
+/// preventing a negative component from creating cyclic dependences between adjacent tiles.
 fn can_tile_2d(deps: &[[i64; 2]]) -> bool {
-    // Rectangular tiling is legal iff all components of dependence vectors are >= 0.
     deps.iter().all(|&d| d[0] >= 0 && d[1] >= 0)
 }
 
-// Execute `for i in 1..=rows { for j in 1..=cols { A[i][j] = update(A[i-1][j+1], i, j) } }`.
+/// Reference execution: `for i in 1..=rows { for j in 1..=cols { A[i][j] = update(A[i-1][j+1], i, j) } }`.
+/// Dependence distance is `(i - (i-1), j - (j+1)) = (1, -1)`.
 fn run_original_wavefront(rows: usize, cols: usize) -> Vec<Vec<i64>> {
     let mut a = vec![vec![0i64; cols + 2]; rows + 2];
     for (r, row) in a.iter_mut().enumerate() {
@@ -205,9 +219,11 @@ fn run_original_wavefront(rows: usize, cols: usize) -> Vec<Vec<i64>> {
     a
 }
 
-// Skewed coordinates: u = i, v = i + j  <=>  i = u, j = v - u.
-// Since dependence `(1, -1)` maps under `S = [[1, 0], [1, 1]]` to `(1, 0)`,
-// rectangular tiling `(tu, tv)` over `(u, v)` space preserves every dependence!
+/// Skewed coordinates: `u = i`, `v = i + j`  <=>  `i = u`, `j = v - u`.
+/// Since dependence `(1, -1)` maps under `S = [[1, 0], [1, 1]]` to `(1, 0)`,
+/// rectangular tiling `(tu, tv)` over `(u, v)` space preserves every dependence!
+/// Note: original `1 <= j <= cols` translates in `(u, v)` space to `u + 1 <= v <= u + cols`,
+/// intersected with the current tile `[tv, tv_end]`.
 fn run_skewed_tiled_wavefront(
     rows: usize,
     cols: usize,

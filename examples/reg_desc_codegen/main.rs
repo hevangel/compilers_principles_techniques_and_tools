@@ -8,6 +8,7 @@ enum BinOp {
     Sub,
 }
 
+/// Three-address instruction (quadruple): either `dst = arg1 op arg2` or copy `dst = arg1`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Quad {
     dst: String,
@@ -16,12 +17,16 @@ struct Quad {
     arg2: Option<String>,
 }
 
+/// Liveness and next-use metadata for one variable *after* a given instruction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct VarUseInfo {
+    /// True if the value is read later in this block or belongs to `live_on_exit`.
     live: bool,
+    /// Index of the next instruction in the block that reads this value (`None` if only live on exit).
     next_use: Option<usize>,
 }
 
+/// Per-instruction snapshot of `(live, next_use)` attached to `dst`, `arg1`, and `arg2`.
 #[derive(Clone, Debug)]
 struct InstrLiveness {
     dst_info: VarUseInfo,
@@ -29,12 +34,14 @@ struct InstrLiveness {
     arg2_info: Option<VarUseInfo>,
 }
 
+/// Possible storage locations tracked in `addr_desc`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Location {
     Reg(usize),
     Mem(String),
 }
 
+/// Target RISC-like machine instructions over `num_regs` registers and named memory homes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum RiscInstr {
     Ld { dst: usize, mem: String },
@@ -44,7 +51,10 @@ enum RiscInstr {
     Sub { dst: usize, lhs: usize, rhs: usize },
 }
 
+/// Dragon Book §8.4.2 backward pass: scan quads in reverse starting from `live_on_exit`
+/// to attach `(live, next_use)` information to every instruction's operands and destination.
 fn compute_next_use(quads: &[Quad], live_on_exit: &BTreeSet<String>) -> Vec<InstrLiveness> {
+    // At block exit, variables in `live_on_exit` are live with no in-block next use.
     let mut table: BTreeMap<String, VarUseInfo> = BTreeMap::new();
     for v in live_on_exit {
         table.insert(
@@ -70,6 +80,7 @@ fn compute_next_use(quads: &[Quad], live_on_exit: &BTreeSet<String>) -> Vec<Inst
     ];
 
     for (idx, q) in quads.iter().enumerate().rev() {
+        // Record the liveness/next-use state *after* instruction `idx` executes.
         let dst_info = table.get(&q.dst).cloned().unwrap_or_else(dead);
         let arg1_info = table.get(&q.arg1).cloned().unwrap_or_else(dead);
         let arg2_info = q
@@ -83,7 +94,9 @@ fn compute_next_use(quads: &[Quad], live_on_exit: &BTreeSet<String>) -> Vec<Inst
             arg2_info,
         };
 
-        // Update backward state: kill dst, then record uses of arg1/arg2 at idx.
+        // Update backward state for instructions *before* `idx`:
+        // Kill `dst` FIRST (it is overwritten here), then mark `arg1`/`arg2` live at `idx`
+        // so self-updates like `a = a + b` keep `a` live before `idx`.
         table.insert(q.dst.clone(), dead());
         table.insert(
             q.arg1.clone(),
@@ -105,14 +118,18 @@ fn compute_next_use(quads: &[Quad], live_on_exit: &BTreeSet<String>) -> Vec<Inst
     out
 }
 
+/// Machine descriptor state maintained while translating one basic block forward.
 struct CodegenState {
+    /// `reg_desc[r]`: set of variables whose current value resides in register `r`.
     reg_desc: Vec<BTreeSet<String>>,
+    /// `addr_desc[v]`: set of locations (Reg and/or Mem) holding `v`'s up-to-date value.
     addr_desc: BTreeMap<String, BTreeSet<Location>>,
     code: Vec<RiscInstr>,
 }
 
 impl CodegenState {
     fn new(num_regs: usize, vars: &BTreeSet<String>) -> Self {
+        // Initially every variable lives only in its home memory slot.
         let mut addr_desc = BTreeMap::new();
         for v in vars {
             addr_desc.insert(v.clone(), BTreeSet::from([Location::Mem(v.clone())]));
@@ -128,6 +145,7 @@ impl CodegenState {
         self.reg_desc.iter().position(|vars| vars.contains(var))
     }
 
+    /// Dissociate every variable currently held in register `r` from `Reg(r)`.
     fn clear_reg(&mut self, r: usize) {
         let holding: Vec<String> = self.reg_desc[r].iter().cloned().collect();
         for v in holding {
@@ -138,6 +156,7 @@ impl CodegenState {
         self.reg_desc[r].clear();
     }
 
+    /// Evict register `r`, emitting `St` only for variables that are still live AND have no other copy.
     fn spill_reg(&mut self, r: usize, future_live: &BTreeMap<String, usize>) {
         let holding: Vec<String> = self.reg_desc[r].iter().cloned().collect();
         for v in holding {
@@ -157,6 +176,10 @@ impl CodegenState {
         self.clear_reg(r);
     }
 
+    /// Select a register to allocate (never picking `exclude`), minimizing spill cost:
+    /// 1. Empty register (zero cost).
+    /// 2. Register whose variables are dead or already duplicated in `Mem`/another `Reg` (zero spill).
+    /// 3. Register whose soonest next-use is farthest in the future (Belady-style spill victim).
     fn pick_victim(
         &mut self,
         exclude: Option<usize>,
@@ -182,7 +205,7 @@ impl CodegenState {
                 return r;
             }
         }
-        // 3. Farthest next-use victim.
+        // 3. Farthest next-use victim: maximizes distance until a reload `Ld` will be needed.
         let victim = (0..self.reg_desc.len())
             .filter(|&r| Some(r) != exclude)
             .max_by_key(|&r| {
@@ -197,6 +220,7 @@ impl CodegenState {
         victim
     }
 
+    /// Return a register holding `var`, loading it from `Mem` if needed without evicting `exclude`.
     fn ensure_in_reg(
         &mut self,
         var: &str,
@@ -219,6 +243,7 @@ impl CodegenState {
         r
     }
 
+    /// Choose the destination register `rz` for `q` (Dragon Book `getReg` §8.6.3).
     fn get_reg_for_dst(
         &mut self,
         q: &Quad,
@@ -226,7 +251,7 @@ impl CodegenState {
         rx: usize,
         future_live: &BTreeMap<String, usize>,
     ) -> usize {
-        // Dragon Book §8.6.3: reuse rx if arg1 is exclusively in rx and has no future use (or arg1 == dst).
+        // Reuse `rx` if `arg1` is the sole occupant of `rx` and either `arg1 == dst` or `arg1` dies here.
         if (q.arg1 == q.dst || !info.arg1_info.live)
             && self.reg_desc[rx].len() == 1
             && self.reg_desc[rx].contains(&q.arg1)
@@ -237,6 +262,7 @@ impl CodegenState {
     }
 }
 
+/// Translate one basic block of 3-address quads into RISC instructions using `num_regs` registers.
 fn generate_block(
     quads: &[Quad],
     num_regs: usize,
@@ -255,13 +281,14 @@ fn generate_block(
     let mut state = CodegenState::new(num_regs, &vars);
 
     for (idx, q) in quads.iter().enumerate() {
-        // Compute what is live *after* instruction idx (for spill decisions).
+        // Compute what is live *after* instruction idx and each live variable's earliest next use
+        // (for spill victim selection).
         let mut live_after: BTreeMap<String, usize> = live_on_exit
             .iter()
             .map(|v| (v.clone(), usize::MAX / 2))
             .collect();
         for later in idx + 1..quads.len() {
-            // Remove defs? Overwritten variables lose old value at first def.
+            // Only record a read at `later` if the variable wasn't redefined in `(idx+1..later)`.
             for name in [&quads[later].arg1]
                 .into_iter()
                 .chain(quads[later].arg2.iter())
@@ -276,7 +303,8 @@ fn generate_block(
                 }
             }
         }
-        // Account for variables overwritten in (idx+1..quads.len()) before exit:
+        // A variable in `live_on_exit` whose old value is killed before any read in `(idx+1..)`
+        // does NOT need its pre-`idx` value preserved past `idx`.
         for mid in idx + 1..quads.len() {
             if !live_after.get(&quads[mid].dst).is_some_and(|&u| u < mid)
                 && live_on_exit.contains(&quads[mid].dst)
@@ -291,7 +319,7 @@ fn generate_block(
             }
         }
 
-        // Load operands before selecting destination register.
+        // While loading operands for `idx`, `arg1` and `arg2` must not be spilled before `idx` runs.
         let mut live_during_load = live_after.clone();
         live_during_load.insert(q.arg1.clone(), idx);
         if let Some(a2) = &q.arg2 {
@@ -300,8 +328,8 @@ fn generate_block(
 
         let rx = state.ensure_in_reg(&q.arg1, None, &live_during_load);
         if let (Some(op), Some(a2)) = (q.op, &q.arg2) {
+            // Pass `Some(rx)` as `exclude` so loading `a2` cannot evict `arg1` from `rx`.
             let ry = state.ensure_in_reg(a2, Some(rx), &live_during_load);
-            // Make sure rx was not evicted (it was excluded).
             let rz = state.get_reg_for_dst(q, &liveness[idx], rx, &live_after);
             let instr = match op {
                 BinOp::Add => RiscInstr::Add {
@@ -316,10 +344,9 @@ fn generate_block(
                 },
             };
             state.code.push(instr);
-            // Update descriptors for rz and dst.
+            // `rz` now holds ONLY `q.dst`; any old values in `rz` and any stale locations of `q.dst` are cleared.
             state.clear_reg(rz);
             state.reg_desc[rz].insert(q.dst.clone());
-            // Previous value of q.dst is overwritten everywhere.
             for (r, set) in state.reg_desc.iter_mut().enumerate() {
                 if r != rz {
                     set.remove(&q.dst);
@@ -329,7 +356,7 @@ fn generate_block(
                 .addr_desc
                 .insert(q.dst.clone(), BTreeSet::from([Location::Reg(rz)]));
         } else {
-            // Simple copy: x = y (just update descriptors cleanly or emit Mov if requested).
+            // Copy `dst = arg1`: if `rz == rx` and `arg1` remains live, both share `rx` with no `Mov`!
             let rz = state.get_reg_for_dst(q, &liveness[idx], rx, &live_after);
             if rz != rx {
                 state.code.push(RiscInstr::Mov { dst: rz, src: rx });
@@ -341,7 +368,7 @@ fn generate_block(
             }
             if !state.reg_desc[rz].contains(&q.dst) {
                 if rz == rx && info_copy_preserve(&liveness[idx], &q.arg1) {
-                    // Both arg1 and dst live in rz.
+                    // Both `arg1` and `dst` alias the same register `rz`.
                     state.reg_desc[rz].insert(q.dst.clone());
                 } else {
                     state.clear_reg(rz);
@@ -354,7 +381,7 @@ fn generate_block(
         }
     }
 
-    // Flush any live-on-exit variable whose memory home is stale.
+    // Block-exit flush: store any `live_on_exit` variable whose memory home is stale (dead temps skipped).
     for v in live_on_exit {
         let locs = &state.addr_desc[v];
         if !locs.contains(&Location::Mem(v.clone())) {

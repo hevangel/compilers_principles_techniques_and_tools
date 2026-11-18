@@ -11,15 +11,22 @@ python3 -m unittest examples/frames/main.py
 
 ## What the example teaches
 
-The caller link records where execution returns. The static link points to the active frame of the enclosing lexical scope. `read_nonlocal` walks a fixed number of static links to read a local there.
+### Why we need this
 
-A procedure call creates an **activation record**, also called a stack frame, for one invocation. It can hold local variables, saved control information, and links to other frames. Recursive calls can have multiple frames for the same procedure, each with its own locals.
+In languages with lexically nested procedures (such as Pascal, Ada, or closures in functional languages), a procedure can read variables declared in an enclosing procedure—not just its own locals and globals. When a procedure runs, its local variables live in an **activation record** (stack frame) created for that specific call; recursive calls create multiple frames for the same procedure, each with its own locals.
+
+That creates a subtle problem: **who called you** is not always **where you were declared**. If `outer` declares two sibling helpers `helper` and `inner`, and `outer` calls `helper` which then calls `inner`, then:
+
+- When `inner` **returns**, it must jump back to its caller `helper` (frame 1).
+- When `inner` **reads a variable declared in `outer`**, it must look in `outer`'s frame (frame 0)—*not* `helper`'s frame!
+
+Without two separate links, one of those two operations breaks: using the caller link for variable lookup would accidentally read `helper`'s local `90` instead of `outer`'s `21`, while using the lexical parent to return would skip `helper` entirely.
 
 ### Two links answer different questions
 
 A **caller link**, sometimes called a dynamic link, follows the chain of active calls. A **static link** follows the source language's nesting of procedure declarations. In this model the caller link identifies the caller's frame, while a static link identifies the current activation of the lexically enclosing procedure. A complete runtime also needs to know the return instruction address.
 
-The source structure and the order of calls differ in the sample.
+`read_nonlocal` walks a fixed number of static links to read a local there. The source structure and the order of calls differ in the sample:
 
 | Frame index | Procedure | Local value | Caller index | Static parent index |
 | --- | --- | --- | --- | --- |
@@ -31,7 +38,16 @@ Both `helper` and `inner` are declared inside `outer`, so both static links poin
 
 ### Read a nonlocal variable
 
-For a source name resolved one lexical level outward, generated code can follow one static link and read a known slot in that frame. `read_nonlocal` models this operation with a frame index and hop count. Zero hops reads the local in the starting frame. A hop past the outermost frame yields `None`.
+For a source name resolved one lexical level outward, generated code can follow one static link and read a known slot in that frame. `read_nonlocal` models this operation with a frame index and hop count. Zero hops reads the local in the starting frame (`7` in frame 2). One hop follows `static_parent` from frame 2 to frame 0 and reads `21`. A hop past the outermost frame yields `None`.
+
+### How to read the code
+
+| Component (`main.rs` / `main.py`) | Role |
+| --- | --- |
+| `Frame` | Models one activation record with a `local` slot, dynamic `caller` index, and lexical `static_parent` index. |
+| `read_nonlocal` | Follows `static_parent` for `lexical_hops` steps from the current frame and returns the target frame's `local` (or `None` if out of bounds). |
+| `sample` | Builds the 3-frame snapshot (`outer` at 0, `helper` at 1, `inner` at 2) where call order and lexical nesting diverge. |
+| `main` / test | Prints `inner`'s return target (`Some(1)` / `1`) and outer lookup (`Some(21)` / `21`), then verifies 0, 1, and 2 static hops. |
 
 ## What to look for
 

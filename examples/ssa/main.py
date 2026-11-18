@@ -11,6 +11,7 @@ class BinOp(Enum):
     LT = "Lt"
 
 
+# Pre-SSA CFG IR: mutable variable names can be reassigned across blocks.
 @dataclass(frozen=True)
 class RhsConst:
     val: int
@@ -63,6 +64,7 @@ class BasicBlock:
     term: Term
 
 
+# SSA variable identifier: `(base_name, version)`. Version 0 denotes an initial/parameter value.
 @dataclass(frozen=True)
 class SsaVar:
     name: str
@@ -89,6 +91,7 @@ class SsaRhsBin:
 SsaRhs = SsaRhsConst | SsaRhsVar | SsaRhsBin
 
 
+# Block-entry merge node: picks `incoming[pred_bb]` based on which predecessor jumped here.
 @dataclass
 class Phi:
     dst: SsaVar
@@ -130,6 +133,8 @@ class SsaBlock:
 
 @dataclass
 class SsaProgram:
+    """SSA CFG bundled with dominance sets, idom links, and dominance frontiers."""
+
     blocks: list[SsaBlock]
     preds: list[list[int]]
     dom: list[set[int]]
@@ -148,6 +153,7 @@ def successors_of(term: Term) -> list[int]:
 def compute_dominators(
     num_blocks: int, preds: list[list[int]], reachable: set[int]
 ) -> tuple[list[set[int]], list[int | None], list[list[int]]]:
+    """Iteratively compute dominator sets, immediate dominators, and the dominator tree."""
     dom: list[set[int]] = [set() for _ in range(num_blocks)]
     for b in reachable:
         dom[b] = {0} if b == 0 else set(reachable)
@@ -174,6 +180,7 @@ def compute_dominators(
         if b == 0:
             continue
         strict = sorted(d for d in dom[b] if d != b)
+        # Immediate dominator is the strict dominator dominated by all other strict dominators.
         parent = next(
             (cand for cand in strict if all(other in dom[cand] for other in strict)),
             None,
@@ -187,12 +194,14 @@ def compute_dominators(
 def compute_dominance_frontiers(
     preds: list[list[int]], idom: list[int | None], reachable: set[int]
 ) -> list[set[int]]:
+    """Compute dominance frontiers via the Cooper-Harvey-Kennedy predecessor walk."""
     df: list[set[int]] = [set() for _ in preds]
     for b in sorted(reachable):
         rpreds = [p for p in preds[b] if p in reachable]
         if len(rpreds) >= 2:
             for p in rpreds:
                 runner: int | None = p
+                # Each visited node dominates `p` (a pred of `b`) without strictly dominating `b`.
                 while runner is not None and runner != idom[b]:
                     df[runner].add(b)
                     runner = idom[runner]
@@ -200,12 +209,14 @@ def compute_dominance_frontiers(
 
 
 def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
+    """Convert a CFG to minimal pruned SSA form (dominance -> liveness -> phis -> DFS rename)."""
     n = len(cfg)
     preds: list[list[int]] = [[] for _ in range(n)]
     for b, blk in enumerate(cfg):
         for s in successors_of(blk.term):
             preds[s].append(b)
 
+    # Filter to blocks reachable from entry 0 so dead blocks never pollute phis.
     reachable = {0}
     stack = [0]
     while stack:
@@ -223,6 +234,7 @@ def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
         for stmt in cfg[b].stmts:
             defs.setdefault(stmt.dst, set()).add(b)
 
+    # Backward liveness analysis for pruned SSA: suppress phis when a variable is dead at entry.
     use_blk: list[set[str]] = [set() for _ in range(n)]
     def_blk: list[set[str]] = [set() for _ in range(n)]
     for b in sorted(reachable):
@@ -257,6 +269,7 @@ def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
         if not changed:
             break
 
+    # Iterated dominance-frontier worklist for minimal phi placement.
     phi_vars: list[set[str]] = [set() for _ in range(n)]
     for var, def_blocks in sorted(defs.items()):
         has_phi: set[int] = set()
@@ -294,6 +307,7 @@ def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
             term = SsaTermReturn(SsaVar(blk.term.var, 0))
         ssa_blocks.append(SsaBlock(phis, stmts, term))
 
+    # Dominator-tree DFS renaming: `stacks[name][-1]` tracks the reaching definition in scope.
     counters: dict[str, int] = {}
     stacks: dict[str, list[int]] = {}
 
@@ -329,11 +343,13 @@ def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
             )
         elif isinstance(t, SsaTermReturn):
             ssa_blocks[b].term = SsaTermReturn(SsaVar(t.var.name, cur_ver(t.var.name)))
+        # Fill outgoing edge phi incoming operands with versions live at the end of block `b`.
         for succ in successors_of(cfg[b].term):
             for phi in ssa_blocks[succ].phis:
                 phi.incoming[b] = SsaVar(phi.dst.name, cur_ver(phi.dst.name))
         for child in dom_children[b]:
             rename(child)
+        # Pop versions defined in `b` so sibling dominator subtrees see the outer version.
         for name in pushed:
             stacks[name].pop()
 
@@ -342,6 +358,7 @@ def to_ssa(cfg: list[BasicBlock]) -> SsaProgram:
 
 
 def verify_ssa(ssa: SsaProgram) -> None:
+    """Verify unique definitions and strict dominance of every use (phi uses checked at pred)."""
     def_block: dict[SsaVar, int] = {}
     for b, blk in enumerate(ssa.blocks):
         for phi in blk.phis:
@@ -381,6 +398,7 @@ def verify_ssa(ssa: SsaProgram) -> None:
 
 
 def fold_ssa_constants(ssa: SsaProgram) -> None:
+    """Propagate and fold SSA constants globally until a fixed point is reached."""
     while True:
         consts: dict[SsaVar, int] = {}
         for blk in ssa.blocks:
@@ -421,6 +439,7 @@ def ssa_lowered_name(v: SsaVar) -> str:
 
 
 def de_ssa(ssa: SsaProgram) -> list[BasicBlock]:
+    """Lower SSA phis to sequential edge copies using temporaries and critical-edge splitting."""
     blocks: list[BasicBlock] = []
     for blk in ssa.blocks:
         stmts = []
@@ -458,6 +477,7 @@ def de_ssa(ssa: SsaProgram) -> list[BasicBlock]:
             for pred, src in sorted(phi.incoming.items()):
                 by_pred.setdefault(pred, []).append((dst, ssa_lowered_name(src)))
         for pred, copies in sorted(by_pred.items()):
+            # Two-phase copy via __phi_tmp_* preserves simultaneous phi evaluation semantics.
             copy_stmts = [
                 Stmt(f"__phi_tmp_{succ_idx}_{idx}", RhsVar(src))
                 for idx, (_, src) in enumerate(copies)
@@ -468,6 +488,7 @@ def de_ssa(ssa: SsaProgram) -> list[BasicBlock]:
             if len(successors_of(blocks[pred].term)) == 1:
                 blocks[pred].stmts.extend(copy_stmts)
             else:
+                # Split critical edge pred -> succ_idx with a dedicated trampoline block.
                 tramp = len(blocks)
                 blocks.append(BasicBlock(copy_stmts, TermJump(succ_idx)))
                 t = blocks[pred].term

@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+// Primitive types ordered strictly from narrowest to widest:
+// Bool -> Char -> Int -> Float -> Double.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Type {
     Bool,
@@ -11,6 +13,7 @@ enum Type {
     Double,
 }
 
+// Explicit single-step widening instructions inserted into the resolved AST.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CoercionOp {
     B2C,
@@ -31,6 +34,7 @@ enum Expr {
     Call(String, Vec<Expr>),
 }
 
+// Type-checked call tree where each argument carries the exact widening chain needed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ResolvedExpr {
     Lit(Type),
@@ -48,6 +52,7 @@ enum OverloadError {
     Ambiguous(Vec<Type>),
 }
 
+// Single upward step in the widening chain; returns None at Double so narrowing is never allowed.
 fn next_wider(ty: Type) -> Option<(Type, CoercionOp)> {
     match ty {
         Type::Bool => Some((Type::Char, CoercionOp::B2C)),
@@ -58,6 +63,7 @@ fn next_wider(ty: Type) -> Option<(Type, CoercionOp)> {
     }
 }
 
+// Compute the sequence of widening coercions from `from` to `to`, or None if `from` is wider.
 fn coercion_chain(from: Type, to: Type) -> Option<Vec<CoercionOp>> {
     let mut cur = from;
     let mut ops = Vec::new();
@@ -69,6 +75,8 @@ fn coercion_chain(from: Type, to: Type) -> Option<Vec<CoercionOp>> {
     Some(ops)
 }
 
+// Find the least common supertype of `t1` and `t2` along the linear hierarchy, returning
+// `(common_type, coercions_for_t1, coercions_for_t2)`.
 fn widen(t1: Type, t2: Type) -> Option<(Type, Vec<CoercionOp>, Vec<CoercionOp>)> {
     if let Some(ops) = coercion_chain(t1, t2) {
         Some((t2, ops, Vec::new()))
@@ -77,6 +85,7 @@ fn widen(t1: Type, t2: Type) -> Option<(Type, Vec<CoercionOp>, Vec<CoercionOp>)>
     }
 }
 
+// A feasible interpretation of a subexpression before knowing the parent's expected type.
 #[derive(Clone, Debug)]
 struct Candidate {
     ret: Type,
@@ -84,7 +93,10 @@ struct Candidate {
     expr: ResolvedExpr,
 }
 
-// Pass 1 (bottom-up): synthesize all viable return types and conversion costs.
+// Pass 1 (bottom-up): synthesize all viable return types and accumulated conversion costs.
+// Invariant: for each parameter position of a candidate overload `sig`, only the unique
+// minimum-cost argument candidate (measured by `c.cost + ops.len()`) is accepted; ties at the
+// argument level raise `Ambiguous` immediately.
 fn synthesize_candidates(
     expr: &Expr,
     overloads: &BTreeMap<String, Vec<Signature>>,
@@ -169,6 +181,8 @@ fn synthesize_candidates(
 }
 
 // Pass 2 (top-down): narrow candidates using expected parent return type and minimum cost.
+// Any candidate whose return type can widen to `expected_ret` adds those return-coercion steps
+// to its total cost; a unique minimum-cost survivor wins, while ties report `Ambiguous`.
 fn resolve_overload(
     expr: &Expr,
     expected_ret: Option<Type>,

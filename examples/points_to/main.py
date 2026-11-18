@@ -4,6 +4,11 @@ import unittest
 
 
 def solve(points_to: list[set[str]], inclusions: list[tuple[int, int]]) -> list[set[str]]:
+    """Least fixed-point solver for inclusion constraints `pts[src] <= pts[dst]`.
+
+    Because allocation sites are finite and union is monotonic, every cycle terminates
+    once no pass increases the size of any variable's points-to set.
+    """
     state = [set(s) for s in points_to]
     while True:
         changed = False
@@ -17,6 +22,12 @@ def solve(points_to: list[set[str]], inclusions: list[tuple[int, int]]) -> list[
 
 
 def example() -> list[set[str]]:
+    """Model `a = new A; b = new B; x = relay(a); y = relay(b)` with shared callee nodes.
+
+    Sharing `parameter` and `ret` across both call sites makes the analysis context-insensitive,
+    so both `x` and `y` conservatively receive `{alloc_A, alloc_B}`. Return edges are listed
+    first so multiple passes are needed to converge.
+    """
     a, b, parameter, ret, x, y = 0, 1, 2, 3, 4, 5
     initial: list[set[str]] = [set() for _ in range(6)]
     initial[a].add("alloc_A")

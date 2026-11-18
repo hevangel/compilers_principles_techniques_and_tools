@@ -7,6 +7,8 @@ import unittest
 
 @dataclass(frozen=True)
 class PrimType:
+    """Scalar primitive type with fixed ABI byte size and alignment requirement."""
+
     name: str
     size: int
     align: int
@@ -14,11 +16,15 @@ class PrimType:
 
 @dataclass(frozen=True)
 class StructType:
+    """Product type whose fields are laid out sequentially with alignment padding."""
+
     members: list[tuple[str, "Type"]]
 
 
 @dataclass(frozen=True)
 class UnionType:
+    """Sum/overlay type whose fields all begin at offset 0."""
+
     members: list[tuple[str, "Type"]]
 
 
@@ -30,6 +36,8 @@ U64 = PrimType("U64", 8, 8)
 
 @dataclass(frozen=True)
 class FieldLayout:
+    """Computed byte offset, size, and alignment of a single record member."""
+
     name: str
     offset: int
     size: int
@@ -38,6 +46,8 @@ class FieldLayout:
 
 @dataclass(frozen=True)
 class RecordLayout:
+    """Total padded size, strictest alignment, and padding waste of a `Type`."""
+
     size: int
     align: int
     padding_bytes: int
@@ -45,26 +55,31 @@ class RecordLayout:
 
 
 def align_up(offset: int, align: int) -> int:
+    """Round `offset` up to the smallest multiple of `align` >= `offset`."""
     if align <= 1:
         return offset
     return ((offset + align - 1) // align) * align
 
 
 def layout_type(ty: Type) -> RecordLayout:
+    """Compute natural C-style field offsets, alignment, and padding for `ty`."""
     if isinstance(ty, PrimType):
         return RecordLayout(ty.size, ty.align, 0, [])
     if isinstance(ty, StructType):
         cursor = 0
+        # Struct alignment equals the max member alignment so every field stays aligned.
         max_align = 1
         payload = 0
         fields: list[FieldLayout] = []
         for name, mty in ty.members:
             m = layout_type(mty)
+            # Insert internal padding before `name` if `cursor` is not aligned to `m.align`.
             off = align_up(cursor, m.align)
             max_align = max(max_align, m.align)
             payload += m.size
             fields.append(FieldLayout(name, off, m.size, m.align))
             cursor = off + m.size
+        # Add tail padding so arrays of this struct align every element (`max(..., 1)` avoids size 0).
         total = max(align_up(cursor, max_align), 1)
         return RecordLayout(total, max_align, max(0, total - payload), fields)
     max_size = 1
@@ -74,7 +89,9 @@ def layout_type(ty: Type) -> RecordLayout:
         m = layout_type(mty)
         max_size = max(max_size, m.size)
         max_align = max(max_align, m.align)
+        # All union members overlap at offset 0.
         fields.append(FieldLayout(name, 0, m.size, m.align))
+    # Union size must fit the largest member and be a multiple of the strictest member alignment.
     total = align_up(max_size, max_align)
     max_member = max((f.size for f in fields), default=0)
     return RecordLayout(total, max_align, total - max_member, fields)
@@ -92,6 +109,8 @@ class VarExpr:
 
 @dataclass(frozen=True)
 class FieldAddrExpr:
+    """Computes `base + offset` for a struct/union field address."""
+
     base: str
     offset: int
 
@@ -108,6 +127,8 @@ Expr = VarExpr | FieldAddrExpr | BinExpr
 
 @dataclass(frozen=True)
 class Quadruple:
+    """Four-field three-address instruction using explicit named temporaries (`t0`, `t1`, ...)."""
+
     op: str
     arg1: str
     arg2: str
@@ -116,16 +137,22 @@ class Quadruple:
 
 @dataclass(frozen=True)
 class SymRef:
+    """Variable/symbol operand reference."""
+
     name: str
 
 
 @dataclass(frozen=True)
 class ConstRef:
+    """Constant integer operand reference."""
+
     val: int
 
 
 @dataclass(frozen=True)
 class TripleIdxRef:
+    """Positional reference to the value produced by triple slot `idx`."""
+
     idx: int
 
 
@@ -134,6 +161,8 @@ ArgRef = SymRef | ConstRef | TripleIdxRef
 
 @dataclass(frozen=True)
 class Triple:
+    """Three-field instruction whose result is identified by its slot index `(idx)`."""
+
     op: str
     arg1: ArgRef
     arg2: ArgRef
@@ -141,11 +170,14 @@ class Triple:
 
 @dataclass
 class IndirectTriples:
+    """Pairs an immutable `triples` table with a reorderable `order` schedule list."""
+
     triples: list[Triple]
     order: list[int]
 
 
 def lower_to_quads(stmts: list[tuple[str, Expr]]) -> list[Quadruple]:
+    """Lower assignments into `Quadruple` form with explicit fresh temporaries."""
     next_t = 0
     out: list[Quadruple] = []
 
@@ -172,6 +204,7 @@ def lower_to_quads(stmts: list[tuple[str, Expr]]) -> list[Quadruple]:
 
 
 def lower_to_triples(stmts: list[tuple[str, Expr]]) -> IndirectTriples:
+    """Lower assignments into `IndirectTriples` (sequential initial `order`)."""
     triples: list[Triple] = []
 
     def emit(expr: Expr) -> ArgRef:
@@ -194,6 +227,7 @@ def lower_to_triples(stmts: list[tuple[str, Expr]]) -> IndirectTriples:
 
 
 def eval_quads(quads: list[Quadruple], initial: dict[str, int]) -> dict[str, int]:
+    """Evaluate `Quadruple` instructions sequentially from `initial` bindings."""
     env = dict(initial)
 
     def get(s: str) -> int:
@@ -215,7 +249,9 @@ def eval_quads(quads: list[Quadruple], initial: dict[str, int]) -> dict[str, int
 
 
 def eval_indirect_triples(it: IndirectTriples, initial: dict[str, int]) -> dict[str, int]:
+    """Evaluate `IndirectTriples` in `it.order`, storing each result at its fixed triple slot."""
     env = dict(initial)
+    # Keyed by fixed table slot `idx`, so permuting `it.order` preserves `TripleIdxRef(idx)`.
     results: dict[int, int] = {}
 
     def resolve(a: ArgRef) -> int:

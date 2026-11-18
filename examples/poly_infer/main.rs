@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+// Type terms: type variables, base primitives, pairs, functions, and tagged records.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Type {
     Var(u32),
@@ -32,12 +33,15 @@ impl fmt::Display for Type {
     }
 }
 
+// Polymorphic type scheme `forall {quantified}. ty`.
+// Monomorphic bindings (like lambda parameters) simply have `quantified` empty.
 #[derive(Clone, Debug)]
 struct TypeScheme {
     quantified: BTreeSet<u32>,
     ty: Type,
 }
 
+// Untyped functional AST input to Hindley-Milner type inference.
 #[derive(Clone, Debug)]
 enum Expr {
     Var(String),
@@ -60,6 +64,7 @@ enum TypeError {
 type Subst = BTreeMap<u32, Type>;
 type TypeEnv = BTreeMap<String, TypeScheme>;
 
+// Transitively apply solved variable bindings to `ty`.
 fn apply_subst(ty: &Type, subst: &Subst) -> Type {
     match ty {
         Type::Var(id) => subst
@@ -102,6 +107,7 @@ fn free_vars_type(ty: &Type, out: &mut BTreeSet<u32>) {
     }
 }
 
+// Quantified variables are bound by `forall`, so only unquantified vars are free in the scheme.
 fn free_vars_scheme(scheme: &TypeScheme) -> BTreeSet<u32> {
     let mut fv = BTreeSet::new();
     free_vars_type(&scheme.ty, &mut fv);
@@ -119,6 +125,8 @@ fn free_vars_env(env: &TypeEnv) -> BTreeSet<u32> {
     fv
 }
 
+// Apply `subst` only to free (unquantified) variables in each scheme so bound `forall`
+// variables are never accidentally overwritten by an outer substitution.
 fn apply_subst_env(env: &TypeEnv, subst: &Subst) -> TypeEnv {
     env.iter()
         .map(|(k, scheme)| {
@@ -138,6 +146,7 @@ fn apply_subst_env(env: &TypeEnv, subst: &Subst) -> TypeEnv {
         .collect()
 }
 
+// Occurs check: prevents cyclic infinite types such as `\x. x x` (`t0 = t0 -> t1`).
 fn occurs(id: u32, ty: &Type) -> bool {
     match ty {
         Type::Var(other) => *other == id,
@@ -147,6 +156,7 @@ fn occurs(id: u32, ty: &Type) -> bool {
     }
 }
 
+// Unify `t1` and `t2` in place by updating `subst`.
 fn unify(t1: &Type, t2: &Type, subst: &mut Subst) -> Result<(), TypeError> {
     let a = apply_subst(t1, subst);
     let b = apply_subst(t2, subst);
@@ -187,6 +197,9 @@ fn unify(t1: &Type, t2: &Type, subst: &mut Subst) -> Result<(), TypeError> {
     }
 }
 
+// Let-generalization invariant: quantify only type variables free in `ty` that are NOT free
+// in the enclosing `env`. Variables free in `env` belong to outer monomorphic binders (e.g.
+// lambda parameters) and must stay shared rather than independently instantiated.
 fn generalize(env: &TypeEnv, ty: &Type) -> TypeScheme {
     let mut fv_ty = BTreeSet::new();
     free_vars_type(ty, &mut fv_ty);
@@ -198,6 +211,7 @@ fn generalize(env: &TypeEnv, ty: &Type) -> TypeScheme {
     }
 }
 
+// Algorithm W inference state: fresh variable generator and accumulated unification bindings.
 struct InferCtx {
     next_id: u32,
     subst: Subst,
@@ -217,6 +231,8 @@ impl InferCtx {
         Type::Var(id)
     }
 
+    // Replace every `forall`-quantified variable with a brand-new TVar so distinct call sites
+    // of a polymorphic binding can unify with different concrete types independently.
     fn instantiate(&mut self, scheme: &TypeScheme) -> Type {
         let mut rename = BTreeMap::new();
         for &q in &scheme.quantified {
@@ -225,6 +241,7 @@ impl InferCtx {
         apply_subst(&scheme.ty, &rename)
     }
 
+    // Syntax-directed Algorithm W type inference.
     fn infer(&mut self, env: &TypeEnv, expr: &Expr) -> Result<Type, TypeError> {
         match expr {
             Expr::Var(name) => {
@@ -244,6 +261,7 @@ impl InferCtx {
                 ))
             }
             Expr::Lam(param, body) => {
+                // Lambda parameters are bound with an empty quantified set -> monomorphic!
                 let param_ty = self.fresh();
                 let mut inner = env.clone();
                 inner.insert(
@@ -261,6 +279,7 @@ impl InferCtx {
             }
             Expr::App(fun, arg) => {
                 let f_ty = self.infer(env, fun)?;
+                // Propagate bindings discovered while inferring `fun` into `env` before checking `arg`.
                 let env_after_fun = apply_subst_env(env, &self.subst);
                 let a_ty = self.infer(&env_after_fun, arg)?;
                 let res_ty = self.fresh();
@@ -270,6 +289,8 @@ impl InferCtx {
             }
             Expr::Let(name, rhs, body) => {
                 let rhs_ty = self.infer(env, rhs)?;
+                // Apply `self.subst` to both `env` and `rhs_ty` before generalizing so `free_vars_env`
+                // reflects all constraints solved during `rhs`.
                 let env_after_rhs = apply_subst_env(env, &self.subst);
                 let rhs_resolved = apply_subst(&rhs_ty, &self.subst);
                 let scheme = generalize(&env_after_rhs, &rhs_resolved);
@@ -298,6 +319,7 @@ fn infer_type(expr: &Expr) -> Result<Type, TypeError> {
     Ok(apply_subst(&ty, &ctx.subst))
 }
 
+// Structural equivalence ignores record tags and compares field names + field types.
 fn structural_eq(a: &Type, b: &Type) -> bool {
     match (a, b) {
         (Type::Var(x), Type::Var(y)) => x == y,
@@ -316,6 +338,7 @@ fn structural_eq(a: &Type, b: &Type) -> bool {
     }
 }
 
+// Nominal equivalence requires identical record type names (`tag`) as well as fields.
 fn nominal_eq(a: &Type, b: &Type) -> bool {
     a == b
 }

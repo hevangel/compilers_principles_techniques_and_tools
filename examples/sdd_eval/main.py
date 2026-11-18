@@ -5,9 +5,12 @@ from enum import Enum
 import heapq
 import unittest
 
+# Attribute vertex key: (parse_node_id, attribute_name).
+# Attributes prefixed with "syn_" are synthesized; others (e.g. "inh_*") are inherited.
 AttrInstance = tuple[int, str]
 
 
+# Fixed set of arithmetic semantic actions so dependency graphs stay inspectable.
 class RuleKind(Enum):
     CONST = "Const"
     COPY_FIRST = "CopyFirst"
@@ -15,6 +18,7 @@ class RuleKind(Enum):
     ADD_TEN_TIMES_LEFT_PLUS_RIGHT = "AddTenTimesLeftPlusRight"
 
 
+# Semantic rule defining `target` from `deps` (adds edges dep -> target).
 @dataclass(frozen=True)
 class Rule:
     target: AttrInstance
@@ -23,12 +27,14 @@ class Rule:
     const_val: int = 0
 
 
+# Parse-tree node links used to check whether dependency edges respect S-/L-attributed rules.
 @dataclass(frozen=True)
 class ParseNode:
     parent: int | None
     children: list[int]
 
 
+# SDD classification hierarchy: SAttributed <= LAttributed <= GeneralAcyclic.
 class SddClass(Enum):
     S_ATTRIBUTED = "SAttributed"
     L_ATTRIBUTED = "LAttributed"
@@ -42,6 +48,12 @@ class CycleError(ValueError):
 
 
 def classify_sdd(nodes: list[ParseNode], rules: list[Rule]) -> SddClass:
+    """Classify an SDD as S-attributed, L-attributed, or general acyclic.
+
+    - S-attributed: only `syn_*` attributes, depending only on direct children (or self).
+    - L-attributed: `syn_*` depends on direct children (or self); inherited attributes
+      depend only on the node's parent or siblings strictly to its left.
+    """
     is_s = True
     is_l = True
     for rule in rules:
@@ -49,6 +61,7 @@ def classify_sdd(nodes: list[ParseNode], rules: list[Rule]) -> SddClass:
         is_synth = target_attr.startswith("syn_")
         for dep_node, _ in rule.deps:
             if dep_node == target_node:
+                # Same-node dependencies are allowed in both S- and L-attributed SDDs.
                 continue
             target_is_parent = dep_node in nodes[target_node].children
             if not is_synth or not target_is_parent:
@@ -57,6 +70,7 @@ def classify_sdd(nodes: list[ParseNode], rules: list[Rule]) -> SddClass:
                 if not target_is_parent:
                     is_l = False
             else:
+                # Inherited attribute: check parent and left-sibling restriction.
                 parent = nodes[target_node].parent
                 if parent is None:
                     is_l = False
@@ -73,6 +87,11 @@ def classify_sdd(nodes: list[ParseNode], rules: list[Rule]) -> SddClass:
 
 
 def evaluate_sdd(rules: list[Rule]) -> tuple[list[AttrInstance], dict[AttrInstance, int]]:
+    """Run Kahn's topological sort on the attribute dependency graph.
+
+    Uses a min-heap over `(node_id, attr_name)` so evaluation order is deterministic,
+    and raises `CycleError` if any attributes still have non-zero in-degree at the end.
+    """
     rule_by_target = {r.target: r for r in rules}
     all_nodes: set[AttrInstance] = set(rule_by_target)
     for r in rules:
@@ -87,6 +106,7 @@ def evaluate_sdd(rules: list[Rule]) -> tuple[list[AttrInstance], dict[AttrInstan
             in_degree[r.target] += 1
             dependents.setdefault(dep, []).append(r.target)
 
+    # Invariant: every attribute in `heap` has all of its dependencies already evaluated.
     heap = sorted(k for k, deg in in_degree.items() if deg == 0)
     heapq.heapify(heap)
     order: list[AttrInstance] = []
@@ -116,6 +136,7 @@ def evaluate_sdd(rules: list[Rule]) -> tuple[list[AttrInstance], dict[AttrInstan
 
 
 def sample_l_attributed() -> tuple[list[ParseNode], list[Rule]]:
+    """Build the 5-node digit-accumulator tree for `3` followed by `5` -> `35`."""
     nodes = [
         ParseNode(None, [1, 2]),
         ParseNode(0, []),

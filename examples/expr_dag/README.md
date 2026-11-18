@@ -11,6 +11,15 @@ python3 -m unittest examples/expr_dag/main.py
 
 ## What the example teaches
 
+### Why we need this
+
+A naive AST preserves every syntactic occurrence of a subexpression as a separate tree node. In `(a + b) + (a + b) * (b + a)`, an AST has 11 nodes (three distinct `+` nodes for `a + b` and `b + a`). Generating code straight from that AST computes `a + b` three separate times. Worse, across statements in a basic block:
+
+- Pure arithmetic identities like `(x + 0) * 1 + (x - x)` should collapse to `x` without emitting useless instructions.
+- Repeated memory loads like `x = A[i]; y = A[i]` can reuse `x`—**unless** an intervening write like `A[j] = 99` occurs. Because `i` and `j` could hold the same runtime index (aliasing), caching `A[i]` purely by syntax `(A, i)` would silently return the stale pre-store value!
+
+**Value-number hash-consing** into a DAG solves the pure redundancy problem, while **per-array modification epochs** keep cached memory loads sound across stores.
+
 Constructing a basic-block DAG eliminates local common subexpressions structurally. By canonicalizing commutative operand order and folding identity rules (`x + 0 -> x`, `x * 1 -> x`, `x - x -> 0`), structurally identical computations reuse the same DAG node ID (`value_number`). Memory operations track per-array modification epochs so an intervening store kills stale cached loads.
 
 ### Hash-consing and kill epochs
@@ -25,9 +34,27 @@ Constructing a basic-block DAG eliminates local common subexpressions structural
 | --- | --- | --- |
 | `#0` | `Leaf("a")` | Input `a` |
 | `#1` | `Leaf("b")` | Input `b` |
-| `#2` | `Bin(Add, #0, #1)` | Shared `a + b` |
+| `#2` | `Bin(Add, #0, #1)` | Shared `a + b` (and `b + a` after commutative swap) |
 | `#3` | `Bin(Mul, #2, #2)` | `(a + b) * (b + a)` |
 | `#4` | `Bin(Add, #2, #3)` | Root expression |
+
+### Basic-block memory trace with alias epochs
+
+| Statement | Array epoch for `A` | Interned DAG key | Emitted TAC |
+| --- | --- | --- | --- |
+| `x = A[i]` | `0` | `ArrayLoad("A", idx(i), epoch=0)` (new) | `ArrayLoad x = A[i]` |
+| `y = A[i]` | `0` | `ArrayLoad("A", idx(i), epoch=0)` (hit!) | `Copy y = x` |
+| `A[j] = 99` | `0 -> 1` | Increments `array_epoch["A"]` to `1` | `LoadConst t0 = 99; ArrayStore A[j] = t0` |
+| `z = A[i]` | `1` | `ArrayLoad("A", idx(i), epoch=1)` (new) | `ArrayLoad z = A[i]` |
+
+## How to read the code
+
+| Concept | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| AST & statements | `ExprAst`, `BbStmt` | `Var`/`Const`/`Bin`, `Assign`/`ArrayRead`/`ArrayWrite`/`PtrKill` | Input expression trees and basic-block statements |
+| DAG & TAC IR | `DagNode`, `TacInst` | Tuple keys (`"Leaf"`, `"Bin"`, ...) & TAC tuples | Hash-consed value nodes and three-address output |
+| Value numbering | `DagBuilder::intern`, `leaf`, `lower_ast`, `make_bin` | `DagBuilder.intern`, `leaf`, `lower_ast`, `make_bin` | Deduplicates, folds constants/identities, normalizes `+`/`*` |
+| Block lowering | `DagBuilder::process_block`, `materialize`, `name_of` | `DagBuilder.process_block`, `_materialize`, `_name_of` | Tracks array/global epochs and emits TAC once per node |
 
 ## What to look for
 

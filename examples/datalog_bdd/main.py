@@ -6,18 +6,24 @@ import unittest
 
 @dataclass(frozen=True)
 class Term:
+    """Datalog term: either a join variable (`is_var=True`) or an integer constant."""
+
     is_var: bool
     val: int
 
 
 @dataclass(frozen=True)
 class Atom:
+    """Predicate application such as `Pts(v0, v1)` or `HeapPts(v0, v1, v2)`."""
+
     pred: str
     terms: tuple[Term, ...]
 
 
 @dataclass(frozen=True)
 class Rule:
+    """Positive Horn clause `head :- body[0], body[1], ...`."""
+
     head: Atom
     body: tuple[Atom, ...]
 
@@ -27,6 +33,7 @@ def v(idx: int) -> Term:
 
 
 def match_atom(atom: Atom, tup: tuple[int, ...], env: dict[int, int]) -> bool:
+    """Unify `atom` against a tuple, rolling back partial variable bindings on mismatch."""
     if len(atom.terms) != len(tup):
         return False
     added: list[int] = []
@@ -60,6 +67,8 @@ def join_rule_slot(
     out_tuples: set[tuple[int, ...]],
     counts: list[int],
 ) -> None:
+    """Join `rule.body` left-to-right; if `delta_slot` is set, that atom reads `deltas`."""
+
     def dfs(idx: int, env: dict[int, int]) -> None:
         if idx == len(rule.body):
             counts[0] += 1
@@ -80,6 +89,7 @@ def join_rule_slot(
 def evaluate_naive(
     edb: dict[str, set[tuple[int, ...]]], rules: list[Rule]
 ) -> tuple[dict[str, set[tuple[int, ...]]], tuple[int, int]]:
+    """Naive fixed-point Datalog evaluation: re-joins all tuples in `db` on every round."""
     db = {k: set(val) for k, val in edb.items()}
     for r in rules:
         db.setdefault(r.head.pred, set())
@@ -105,6 +115,12 @@ def evaluate_naive(
 def evaluate_semi_naive(
     edb: dict[str, set[tuple[int, ...]]], rules: list[Rule]
 ) -> tuple[dict[str, set[tuple[int, ...]]], tuple[int, int]]:
+    """Semi-naive fixed-point evaluation using per-round `deltas`.
+
+    Invariant: any tuple newly derived in round `t` must join at least one fact from round `t-1`,
+    so firing each recursive body position against `deltas` reaches the exact same fixed point
+    with far fewer redundant joins.
+    """
     db = {k: set(val) for k, val in edb.items()}
     idb_preds = {r.head.pred for r in rules}
     for p in idb_preds:
@@ -112,6 +128,7 @@ def evaluate_semi_naive(
     rounds = 1
     counts = [0]
     deltas: dict[str, set[tuple[int, ...]]] = {}
+    # Round 0: seed deltas from non-recursive rules (only EDB predicates in body).
     for rule in rules:
         if all(a.pred not in idb_preds for a in rule.body):
             derived: set[tuple[int, ...]] = set()
@@ -138,6 +155,14 @@ def evaluate_semi_naive(
 
 
 class Robdd:
+    """Arena-backed Reduced Ordered Binary Decision Diagram.
+
+    Invariants:
+    - Variable indices increase strictly from root to terminals (`ZERO=0`, `ONE=1`).
+    - Reduction rule (`low == high => low`) eliminates redundant variable tests.
+    - `unique[(var, low, high)]` guarantees canonical node IDs (equivalence is `u == v`).
+    """
+
     ZERO = 0
     ONE = 1
 
@@ -147,6 +172,7 @@ class Robdd:
         self.cache: dict[tuple[str, int, int], int] = {}
 
     def mk(self, var: int, low: int, high: int) -> int:
+        """Canonical node constructor: collapse `low == high` and deduplicate via `unique`."""
         if low == high:
             return low
         key = (var, low, high)
@@ -177,6 +203,7 @@ class Robdd:
         return u
 
     def apply(self, op: str, u: int, v_node: int) -> int:
+        """Memoized Shannon expansion branching on `top = min(var(u), var(v_node))`."""
         if u <= 1 and v_node <= 1:
             bu, bv = u == 1, v_node == 1
             res = (bu and bv) if op == "and" else (bu or bv) if op == "or" else (bu ^ bv)
@@ -192,6 +219,7 @@ class Robdd:
         return res
 
     def restrict(self, u: int, target: int, val: bool) -> int:
+        """Compute cofactor `u[target := val]`."""
         node = self.nodes[u]
         if node is None or node[0] > target:
             return u
@@ -201,11 +229,13 @@ class Robdd:
         return self.mk(var, self.restrict(low, target, val), self.restrict(high, target, val))
 
     def exists(self, var_ids: list[int], u: int) -> int:
+        """Existential quantification: `exists v. u = u[v := 0] | u[v := 1]`."""
         for vid in var_ids:
             u = self.apply("or", self.restrict(u, vid, False), self.restrict(u, vid, True))
         return u
 
     def substitute(self, u: int, mapping: dict[int, int]) -> int:
+        """Rename BDD variables according to `mapping` while preserving canonical variable order."""
         node = self.nodes[u]
         if node is None:
             return u

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import unittest
 
 
+# Lowered AST nodes where each Literal / EndMarker holds a unique 1-based leaf position.
 @dataclass(frozen=True)
 class Empty:
     pass
@@ -34,12 +35,15 @@ class Star:
 
 @dataclass(frozen=True)
 class EndMarker:
+    """Synthetic sentinel `#` appended for direct DFA construction."""
+
     pos: int
 
 
 RegexNode = Empty | Literal | Cat | Alt | Star | EndMarker
 
 
+# Surface AST nodes before `+` and `?` are desugared and positions are numbered.
 @dataclass(frozen=True)
 class _RawEmpty:
     pass
@@ -78,6 +82,8 @@ class _RawOpt:
 
 
 class _Parser:
+    """Recursive-descent regex parser (precedence: atom > postfix > concat > alt)."""
+
     def __init__(self, pattern: str) -> None:
         self.pattern = pattern
         self.pos = 0
@@ -94,6 +100,7 @@ class _Parser:
 
     def parse_cat(self) -> object:
         factors: list[object] = []
+        # Stop concatenation at `|`, `)`, or EOF; reject empty branches such as `a||b`.
         while (ch := self.peek()) is not None and ch not in ("|", ")"):
             factors.append(self.parse_postfix())
         if not factors:
@@ -104,6 +111,7 @@ class _Parser:
         return node
 
     def parse_postfix(self) -> object:
+        # Postfix quantifiers bind tighter than concatenation (`ab*` == `a(b*)`).
         node = self.parse_atom()
         while (op := self.peek()) in ("*", "+", "?"):
             self.pos += 1
@@ -143,6 +151,11 @@ class _Parser:
 
 
 def _assign_positions(raw: object, counter: list[int]) -> RegexNode:
+    """Desugar `+` and `?` and assign unique 1-based positions to every leaf.
+
+    Expanding `_RawPlus(a)` into `Cat(a, Star(a))` gives each copy of `a` distinct
+    position IDs so `followpos` tracks first vs. repeated occurrences separately.
+    """
     if isinstance(raw, _RawEmpty):
         return Empty()
     if isinstance(raw, _RawLit):
@@ -165,6 +178,7 @@ def _assign_positions(raw: object, counter: list[int]) -> RegexNode:
 
 
 def parse_regex(pattern: str) -> RegexNode:
+    """Parse an ASCII regex string into a positioned `RegexNode` AST."""
     if not pattern:
         return Empty()
     if not pattern.isascii():
@@ -177,6 +191,8 @@ def parse_regex(pattern: str) -> RegexNode:
 
 
 class Nfa:
+    """Thompson epsilon-NFA (`None` labels represent epsilon edges)."""
+
     def __init__(self) -> None:
         self.transitions: list[list[tuple[str | None, int]]] = []
         self.start = 0
@@ -188,6 +204,7 @@ class Nfa:
         return idx
 
     def build(self, node: RegexNode) -> tuple[int, int]:
+        """Recursively construct a single-entry, single-exit NFA fragment `(start, accept)`."""
         if isinstance(node, Empty):
             s, t = self.new_state(), self.new_state()
             self.transitions[s].append((None, t))
@@ -214,11 +231,13 @@ class Nfa:
         s = self.new_state()
         s1, t1 = self.build(node.inner)
         t = self.new_state()
+        # `s -> t` allows zero repetitions; `t1 -> s1` loops for more repetitions.
         self.transitions[s].extend([(None, s1), (None, t)])
         self.transitions[t1].extend([(None, s1), (None, t)])
         return s, t
 
     def eps_closure(self, seeds: set[int]) -> set[int]:
+        """Return all states reachable from `seeds` via zero or more epsilon edges."""
         closure = set(seeds)
         stack = list(seeds)
         while stack:
@@ -230,6 +249,7 @@ class Nfa:
         return closure
 
     def accepts(self, text: str) -> bool:
+        """Simulate the NFA on `text` by tracking the epsilon-closed active state set."""
         current = self.eps_closure({self.start})
         for ch in text:
             moved = {
@@ -250,6 +270,8 @@ def to_thompson_nfa(node: RegexNode) -> Nfa:
 
 @dataclass(frozen=True)
 class Dfa:
+    """Deterministic transition table compiled directly from `followpos`."""
+
     start: int
     alphabet: list[str]
     accepting: frozenset[int]
@@ -279,6 +301,7 @@ def _collect_positions(
     pos_char: dict[int, str],
     followpos: dict[int, set[int]],
 ) -> tuple[bool, set[int], set[int]]:
+    """Compute `(nullable, firstpos, lastpos)` bottom-up and populate `followpos`."""
     if isinstance(node, Empty):
         return True, set(), set()
     if isinstance(node, Literal):
@@ -286,6 +309,7 @@ def _collect_positions(
         followpos.setdefault(node.pos, set())
         return False, {node.pos}, {node.pos}
     if isinstance(node, EndMarker):
+        # EndMarker is omitted from `pos_char` so `#` is never treated as an input symbol.
         followpos.setdefault(node.pos, set())
         return False, {node.pos}, {node.pos}
     if isinstance(node, Alt):
@@ -295,8 +319,10 @@ def _collect_positions(
     if isinstance(node, Cat):
         ln, lf, ll = _collect_positions(node.left, pos_char, followpos)
         rn, rf, rl = _collect_positions(node.right, pos_char, followpos)
+        # Every last position of `left` can transition to every first position of `right`.
         for p in ll:
             followpos.setdefault(p, set()).update(rf)
+        # Nullable left lets matches start in `right`; nullable right lets matches end in `left`.
         firstpos = set(lf) | (rf if ln else set())
         lastpos = set(rl) | (ll if rn else set())
         return ln and rn, firstpos, lastpos
@@ -308,6 +334,7 @@ def _collect_positions(
 
 
 def compile_direct_dfa(node: RegexNode) -> Dfa:
+    """Compile `node` directly to a DFA by augmenting with `#` and expanding `followpos`."""
     end_pos = _max_pos(node) + 1
     augmented = Cat(node, EndMarker(end_pos))
     pos_char: dict[int, str] = {}
@@ -323,6 +350,7 @@ def compile_direct_dfa(node: RegexNode) -> Dfa:
     cursor = 0
     while cursor < len(state_sets):
         current = state_sets[cursor]
+        # Any DFA state containing the end-marker position represents an accepting state.
         if end_pos in current:
             accepting.add(cursor)
         row: list[int] = []

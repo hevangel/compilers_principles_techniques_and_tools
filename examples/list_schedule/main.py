@@ -6,26 +6,39 @@ import unittest
 
 @dataclass(frozen=True)
 class Task:
+    """One instruction in a basic-block data-dependence DAG."""
+
     name: str
-    latency: int
-    depends_on: tuple[int, ...]
+    latency: int  # Cycles from issue until its result is ready for consumers.
+    depends_on: tuple[int, ...]  # Indices of producer tasks that must complete first.
 
 
 def schedule(tasks: list[Task], width: int) -> list[int] | None:
+    """Greedy list scheduler honoring dependence latencies and per-cycle issue width.
+
+    Invariants:
+    - For every dependency `dep -> idx`, `issued[idx] >= issued[dep] + tasks[dep].latency`.
+    - At most `width` instructions are assigned the same issue cycle.
+    - Returns `None` if input constraints are invalid or the graph contains a cycle.
+    """
     if width <= 0 or any(
         task.latency <= 0 or any(dep < 0 or dep >= len(tasks) for dep in task.depends_on)
         for task in tasks
     ):
         return None
+    # `issued[i]` records the assigned issue cycle for task `i`, or `None` while pending.
     issued: list[int | None] = [None] * len(tasks)
     pending = len(tasks)
     cycle = 0
     while pending > 0:
         slots = width
+        # Earliest future cycle at which some unissued task (whose predecessors are all
+        # already issued) becomes eligible, letting us skip empty stall cycles.
         next_ready: int | None = None
         for index, task in enumerate(tasks):
             if issued[index] is not None:
                 continue
+            # Data-readiness is the max of `issue_cycle + latency` across all producers.
             ready_at: int | None = 0
             for dep in task.depends_on:
                 start = issued[dep]
@@ -35,6 +48,8 @@ def schedule(tasks: list[Task], width: int) -> list[int] | None:
                 assert ready_at is not None
                 ready_at = max(ready_at, start + tasks[dep].latency)
             if ready_at is not None:
+                # An instruction issues only when both data-ready and an issue slot remain.
+                # Input order breaks ties (a full priority list scheduler sorts by critical path).
                 if ready_at <= cycle and slots > 0:
                     issued[index] = cycle
                     slots -= 1
@@ -44,8 +59,11 @@ def schedule(tasks: list[Task], width: int) -> list[int] | None:
                     next_ready = candidate if next_ready is None else min(next_ready, candidate)
         if pending > 0:
             if slots < width:
+                # At least one instruction issued, so advance one cycle and rescan.
                 cycle += 1
             else:
+                # Nothing issued this cycle: fast-forward to `next_ready`.
+                # If `next_ready` is `None`, all pending tasks wait on each other (cycle).
                 if next_ready is None:
                     return None
                 cycle = next_ready

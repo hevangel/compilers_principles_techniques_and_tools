@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+// Type term grammar: unknown type variables `Var(id)`, primitive constructors, and arrows.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Type {
     Var(u8),
@@ -10,13 +11,16 @@ enum Type {
     Function(Box<Type>, Box<Type>),
 }
 
+// Substitution environment mapping solved type variable IDs to their bound types.
 type Substitutions = BTreeMap<u8, Type>;
 
 fn function(from: Type, to: Type) -> Type {
     Type::Function(Box::new(from), Box::new(to))
 }
 
-// Follow previous bindings through variables and through function components.
+// Follow previous bindings transitively through variables and recursively through
+// function components. Invariant: if `substitutions` is acyclic (enforced by `occurs`),
+// `resolve` always terminates and returns a term whose top-level bound variables are expanded.
 fn resolve(ty: &Type, substitutions: &Substitutions) -> Type {
     match ty {
         Type::Var(id) => substitutions
@@ -29,7 +33,9 @@ fn resolve(ty: &Type, substitutions: &Substitutions) -> Type {
     }
 }
 
-// Search a resolved type for the variable we are about to bind.
+// Occurs check: returns true if `id` appears anywhere inside `ty`.
+// Prevents binding `id -> ty` when `ty` already contains `id`, which would form an
+// infinite recursive type (like `t0 = t0 -> Int`) and cause `resolve` to diverge.
 fn occurs(id: u8, ty: &Type) -> bool {
     match ty {
         Type::Var(other) => id == *other,
@@ -44,6 +50,9 @@ enum Error {
     Clash(Type, Type),
 }
 
+// Robinson's first-order unification using a worklist of equality constraints.
+// Invariant: `substitutions` never maps an already-bound variable (because both sides are
+// resolved before matching) and never contains cycles (because of `occurs` + `left == right`).
 fn unify(mut equations: Vec<(Type, Type)>) -> Result<Substitutions, Error> {
     let mut substitutions = Substitutions::new();
     while let Some((left, right)) = equations.pop() {

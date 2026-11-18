@@ -2,14 +2,19 @@
 
 use std::collections::BTreeMap;
 
+/// Heap object storing outgoing references plus GC metadata (`marked`, `forwarded`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct HeapObj {
     tag: String,
+    /// Slot indices pointing to child objects (`None` = null field).
     fields: Vec<Option<usize>>,
+    /// Reachability flag used by Mark-Compact Pass 1.
     marked: bool,
+    /// Forwarding pointer: new slot index in `to_space` (Cheney) or compacted prefix (Mark-Compact).
     forwarded: Option<usize>,
 }
 
+/// Two equal-sized semispaces: mutator allocates in `from_space`; GC evacuates live data to `to_space`.
 #[derive(Clone, Debug)]
 struct SemispaceHeap {
     from_space: Vec<Option<HeapObj>>,
@@ -39,13 +44,18 @@ impl SemispaceHeap {
         panic!("from_space exhausted");
     }
 
-    // Cheney breadth-first copying using scan & free pointers (zero recursion stack).
+    /// Cheney breadth-first copying using `scan` and `free` cursors over `to_space`.
+    /// Invariant throughout the loop:
+    /// - `0..scan`: copied objects whose child pointers already point into `to_space`.
+    /// - `scan..free`: copied objects whose child pointers still point into `from_space` (the BFS queue!).
+    /// - `free..`: empty space ready for bump allocation.
     fn cheney_collect(&mut self, roots: &mut [usize]) -> (usize, usize) {
         self.to_space.fill(None);
         let mut free = 0usize;
         let mut scan = 0usize;
         let mut copy_count = 0usize;
 
+        // Evacuate `old_idx` from `from_space` to `to_space` if not yet forwarded.
         let copy_ref = |old_idx: usize,
                         from_space: &mut [Option<HeapObj>],
                         to_space: &mut [Option<HeapObj>],
@@ -53,12 +63,14 @@ impl SemispaceHeap {
                         copy_count: &mut usize|
          -> usize {
             let slot = from_space[old_idx].as_mut().expect("dangling heap ptr");
+            // If already evacuated (shared DAG node or back-edge in a cycle), reuse its forwarding address.
             if let Some(fwd) = slot.forwarded {
                 return fwd;
             }
             let new_idx = *free;
             *free += 1;
             *copy_count += 1;
+            // Record forwarding address in `from_space` *before* scanning children so cycles terminate.
             slot.forwarded = Some(new_idx);
             let mut cloned = slot.clone();
             cloned.forwarded = None;
@@ -67,6 +79,7 @@ impl SemispaceHeap {
             new_idx
         };
 
+        // Step 1: evacuate all directly rooted objects and rewrite the root pointers.
         for r in roots.iter_mut() {
             *r = copy_ref(
                 *r,
@@ -77,6 +90,7 @@ impl SemispaceHeap {
             );
         }
 
+        // Step 2: advance `scan` across `to_space` until it catches `free`, evacuating each child.
         while scan < free {
             let num_fields = self.to_space[scan].as_ref().unwrap().fields.len();
             for fi in 0..num_fields {
@@ -94,29 +108,31 @@ impl SemispaceHeap {
             scan += 1;
         }
 
+        // Step 3: flip semispaces so the newly compacted `to_space` becomes the active `from_space`.
         std::mem::swap(&mut self.from_space, &mut self.to_space);
         self.to_space.fill(None);
         (free, copy_count)
     }
 }
 
+/// Single-space heap compacted in place via 3-pass sliding Mark-Compact collection.
 #[derive(Clone, Debug)]
 struct SlidingHeap {
     slots: Vec<Option<HeapObj>>,
 }
 
 impl SlidingHeap {
-    // 3-pass sliding Mark-Compact collector:
-    // 1. Mark reachable objects from roots.
-    // 2. Compute dense contiguous addresses in scan order (`forwarded`).
-    // 3. Rewrite all pointers (roots + fields) and slide objects into place.
+    /// 3-pass sliding Mark-Compact collector:
+    /// 1. Mark reachable objects from roots.
+    /// 2. Compute dense contiguous addresses in scan order (`forwarded`), preserving allocation order.
+    /// 3. Rewrite all pointers (roots + fields) using `forwarded`, then slide objects into place.
     fn mark_compact(&mut self, roots: &mut [usize]) -> usize {
         for obj in self.slots.iter_mut().flatten() {
             obj.marked = false;
             obj.forwarded = None;
         }
 
-        // Pass 1: Mark.
+        // Pass 1: Mark reachable subgraph from roots using an explicit stack.
         let mut stack: Vec<usize> = roots.to_vec();
         while let Some(idx) = stack.pop() {
             if let Some(obj) = self.slots[idx].as_mut() {
@@ -129,7 +145,7 @@ impl SlidingHeap {
             }
         }
 
-        // Pass 2: Compute new addresses.
+        // Pass 2: Assign each marked object its final compacted slot index without moving anything yet.
         let mut free = 0usize;
         for slot in &mut self.slots {
             if let Some(obj) = slot.as_mut() {
@@ -140,7 +156,7 @@ impl SlidingHeap {
             }
         }
 
-        // Pass 3: Update pointers and slide live objects down.
+        // Pass 3: Update all pointers *before* overwriting old slots, then slide live objects down.
         let new_addr = |idx: usize, slots: &[Option<HeapObj>]| -> usize {
             slots[idx]
                 .as_ref()
@@ -152,6 +168,7 @@ impl SlidingHeap {
             *r = new_addr(*r, &self.slots);
         }
 
+        // Build relocated copies with updated field pointers while old `forwarded` metadata is still intact.
         let mut updates: Vec<(usize, usize, HeapObj)> = Vec::new();
         for (old_idx, slot) in self.slots.iter().enumerate() {
             if let Some(obj) = slot {
@@ -169,6 +186,7 @@ impl SlidingHeap {
             }
         }
 
+        // Slide live objects into contiguous slots `0..free`, dropping all unmarked garbage.
         self.slots.fill(None);
         for (_, dst, obj) in updates {
             self.slots[dst] = Some(obj);
@@ -177,7 +195,8 @@ impl SlidingHeap {
     }
 }
 
-// Canonicalize reachable graph (tags + deterministic BFS structure) to verify isomorphism.
+/// Canonicalize reachable graph (tags + deterministic BFS structure) to verify graph isomorphism
+/// regardless of which physical slot indices the collector chose.
 fn canonical_graph(
     slots: &[Option<HeapObj>],
     roots: &[usize],

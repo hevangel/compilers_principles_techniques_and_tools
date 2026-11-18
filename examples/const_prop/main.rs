@@ -2,17 +2,24 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Three-level flat semilattice for constant propagation:
+/// `Top` (UNDEF) > `Const(c)` > `Bottom` (NAC, Not A Constant).
+/// No two distinct `Const(c1)` and `Const(c2)` are comparable; their meet is `Bottom`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ConstVal {
-    Top, // UNDEF
+    Top, // UNDEF: variable has not been constrained by any executed path yet.
     Const(i64),
-    Bottom, // NAC
+    Bottom, // NAC: unknown input or conflicting constants along different paths.
 }
 
+/// Semilattice meet (`a /\ b`): greatest lower bound combining two control-flow paths.
 fn meet(a: ConstVal, b: ConstVal) -> ConstVal {
     match (a, b) {
+        // `Top` is the lattice identity (`Top /\ x = x`).
         (ConstVal::Top, x) | (x, ConstVal::Top) => x,
+        // `Bottom` (NAC) is absorbing (`Bottom /\ x = Bottom`).
         (ConstVal::Bottom, _) | (_, ConstVal::Bottom) => ConstVal::Bottom,
+        // Two constants agree iff their integer values are identical.
         (ConstVal::Const(x), ConstVal::Const(y)) => {
             if x == y {
                 ConstVal::Const(x)
@@ -48,8 +55,10 @@ struct BasicBlock {
     succs: Vec<usize>,
 }
 
+/// Abstract environment mapping each variable name to its lattice value.
 type Env = BTreeMap<String, ConstVal>;
 
+/// Monotone abstract transfer function for a single RHS expression.
 fn eval_rhs(rhs: &Rhs, env: &Env) -> ConstVal {
     let get = |v: &str| *env.get(v).unwrap_or(&ConstVal::Top);
     match rhs {
@@ -57,6 +66,8 @@ fn eval_rhs(rhs: &Rhs, env: &Env) -> ConstVal {
         Rhs::Var(v) => get(v),
         Rhs::Bin(op, l, r) => match (op, get(l), get(r)) {
             (Op::Add, ConstVal::Const(a), ConstVal::Const(b)) => ConstVal::Const(a.wrapping_add(b)),
+            // Algebraic zero rule: `0 * x == 0` in pure integer arithmetic even when `x` is NAC.
+            // (Notice we check `Const(0)` *before* `Bottom` so `NAC * 0` folds to `Const(0)`!)
             (Op::Mul, ConstVal::Const(0), _) | (Op::Mul, _, ConstVal::Const(0)) => {
                 ConstVal::Const(0)
             }
@@ -67,6 +78,7 @@ fn eval_rhs(rhs: &Rhs, env: &Env) -> ConstVal {
     }
 }
 
+/// Sequential block transfer: evaluate statements in program order, updating `env` in place.
 fn transfer_block(stmts: &[Stmt], initial: &Env) -> Env {
     let mut env = initial.clone();
     for s in stmts {
@@ -76,6 +88,11 @@ fn transfer_block(stmts: &[Stmt], initial: &Env) -> Env {
     env
 }
 
+/// Iterative Maximum Fixed Point (MFP) solver.
+///
+/// Non-entry blocks start at `Top` (the optimistic lattice top) and descend monotonically
+/// under `meet` whenever predecessor outputs arrive. Because `eval_rhs` is monotone,
+/// MFP always yields a sound lower bound (`MFP <= MOP`) even though it is non-distributive.
 fn solve_mfp(blocks: &[BasicBlock], initial: &Env) -> (Vec<Env>, Vec<Env>) {
     let n = blocks.len();
     let mut preds = vec![Vec::new(); n];
@@ -101,6 +118,8 @@ fn solve_mfp(blocks: &[BasicBlock], initial: &Env) -> (Vec<Env>, Vec<Env>) {
     loop {
         let mut changed = false;
         for b in 0..n {
+            // Confluence: meet predecessor `out_env` values pointwise for each variable *before*
+            // applying block `b`'s transfer function (this is where MFP loses correlation across vars).
             let new_in = if b == 0 {
                 initial.clone()
             } else if preds[b].is_empty() {
@@ -132,7 +151,10 @@ fn solve_mfp(blocks: &[BasicBlock], initial: &Env) -> (Vec<Env>, Vec<Env>) {
     (in_env, out_env)
 }
 
-// Compute exact Meet-Over-All-Paths (MOP) output for acyclic CFGs.
+/// Compute exact Meet-Over-All-Paths (MOP) output at `target_block` for acyclic CFGs.
+///
+/// Unlike MFP, MOP composes transfer functions along each complete path *first*, and meets
+/// the resulting environments only at the end—preserving `x + y = 5` across both diamond arms.
 fn solve_mop_acyclic(blocks: &[BasicBlock], target_block: usize, initial: &Env) -> Env {
     fn dfs(b: usize, target: usize, blocks: &[BasicBlock], cur_env: &Env, results: &mut Vec<Env>) {
         let out = transfer_block(&blocks[b].stmts, cur_env);
@@ -162,6 +184,7 @@ fn solve_mop_acyclic(blocks: &[BasicBlock], target_block: usize, initial: &Env) 
     joined
 }
 
+/// Rewrite any statement whose RHS evaluates to `ConstVal::Const(c)` into a literal `Rhs::Const(c)`.
 fn fold_blocks(blocks: &[BasicBlock], in_env: &[Env]) -> Vec<BasicBlock> {
     blocks
         .iter()
@@ -190,6 +213,7 @@ fn fold_blocks(blocks: &[BasicBlock], in_env: &[Env]) -> Vec<BasicBlock> {
 }
 
 fn nondistributivity_witness() -> Vec<BasicBlock> {
+    // Classic Dragon Book §9.4.5 witness:
     // if c { x = 2; y = 3 } else { x = 3; y = 2 }; z = x + y
     vec![
         BasicBlock {

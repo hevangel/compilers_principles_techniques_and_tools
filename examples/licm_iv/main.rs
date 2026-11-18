@@ -56,6 +56,7 @@ fn succs(t: &Term) -> Vec<usize> {
     }
 }
 
+/// Forward must-analysis for block dominators (`dom[b]` = blocks on every entry-to-`b` path).
 fn compute_doms(blocks: &[BasicBlock]) -> Vec<BTreeSet<usize>> {
     let n = blocks.len();
     let mut preds = vec![Vec::new(); n];
@@ -90,6 +91,7 @@ fn compute_doms(blocks: &[BasicBlock]) -> Vec<BTreeSet<usize>> {
     dom
 }
 
+/// Collect the natural loop body for back edge `latch -> header` by walking predecessors up to `header`.
 fn natural_loop(blocks: &[BasicBlock], header: usize, latch: usize) -> BTreeSet<usize> {
     let mut preds = vec![Vec::new(); blocks.len()];
     for (b, blk) in blocks.iter().enumerate() {
@@ -138,7 +140,8 @@ fn stmt_uses(s: &Stmt) -> Vec<String> {
     u
 }
 
-// Compute live_in for blocks after/outside the loop so LICM avoids clobbering exit-live vars.
+/// Backward may-analysis for `live_in[b]`: used to check whether a variable defined inside
+/// the loop is still live on any exit target (in which case speculative hoisting is unsafe).
 fn compute_live_in(blocks: &[BasicBlock]) -> Vec<BTreeSet<String>> {
     let n = blocks.len();
     let mut use_b = vec![BTreeSet::new(); n];
@@ -192,6 +195,12 @@ fn compute_live_in(blocks: &[BasicBlock]) -> Vec<BTreeSet<String>> {
     live_in
 }
 
+/// Hoist loop-invariant computations into `preheader` when control-flow safety holds.
+///
+/// Phase 1 (Invariance): iteratively mark statements whose operands are external to the loop
+/// (`def_count == 0`) or uniquely defined invariants, provided `dst` itself has `def_count == 1`.
+/// Phase 2 (Safety gate): hoisting from `b` to `preheader` executes `s` unconditionally before the
+/// loop, so `s` is hoisted iff `b` dominates all loop exit blocks OR `dst` is dead after the loop.
 fn licm_hoist(
     blocks: &[BasicBlock],
     preheader: usize,
@@ -202,7 +211,7 @@ fn licm_hoist(
     let loop_nodes = natural_loop(blocks, header, latch);
     let live_in = compute_live_in(blocks);
 
-    // Count how many times each variable is defined inside the loop.
+    // Count how many times each variable is defined inside the loop (`unique_def` gate).
     let mut def_count: BTreeMap<String, usize> = BTreeMap::new();
     for &b in &loop_nodes {
         for s in &blocks[b].stmts {
@@ -210,7 +219,7 @@ fn licm_hoist(
         }
     }
 
-    // Loop exit blocks: successors outside `loop_nodes`.
+    // Loop exit blocks: loop blocks with an edge to a successor outside `loop_nodes`.
     let mut exits: Vec<usize> = Vec::new();
     let mut exit_targets: BTreeSet<usize> = BTreeSet::new();
     for &b in &loop_nodes {
@@ -221,12 +230,13 @@ fn licm_hoist(
             }
         }
     }
+    // Union `live_in` across all exit targets to know which variables matter outside the loop.
     let mut live_after_loop = BTreeSet::new();
     for &et in &exit_targets {
         live_after_loop.extend(live_in[et].iter().cloned());
     }
 
-    // Iteratively mark invariant statements `(block, stmt_idx)`.
+    // Iteratively mark invariant statements `(block, stmt_idx)` until fixed point.
     let mut invariant: BTreeSet<(usize, usize)> = BTreeSet::new();
     let mut inv_vars: BTreeSet<String> = BTreeSet::new();
     loop {
@@ -285,6 +295,7 @@ fn licm_hoist(
     (out, hoisted_vars, skipped_unsafe)
 }
 
+/// Affine induction variable `var = base_iv * scale + offset` tracked for strength reduction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct DerivedIv {
     var: String,
@@ -293,8 +304,8 @@ struct DerivedIv {
     offset: i64,
 }
 
-// Detect `i = i + step`, derived `t = scale * i + offset`, replace multiplication with incremental `t' = t' + scale * step`,
-// and replace loop exit test `cond = i < limit` with `cond = t' < scale * limit + offset` (dead-IV cleanup).
+/// Detect `i = i + step`, derived `t = i * scale`, replace multiplication with incremental `t_sr += scale * step`,
+/// rewrite loop exit test `cond = i < limit` to `cond = t_sr < limit * scale`, and eliminate dead `i`.
 fn strength_reduce_iv(
     blocks: &[BasicBlock],
     preheader: usize,
@@ -302,7 +313,7 @@ fn strength_reduce_iv(
     latch: usize,
 ) -> (Vec<BasicBlock>, Vec<DerivedIv>, bool) {
     let loop_nodes = natural_loop(blocks, header, latch);
-    // Find basic IV: `i = i + c` inside loop.
+    // Find basic IVs: `i = i + c` inside loop.
     let mut basic_ivs: BTreeMap<String, i64> = BTreeMap::new();
     for &b in &loop_nodes {
         for s in &blocks[b].stmts {
@@ -320,6 +331,7 @@ fn strength_reduce_iv(
         }
     }
 
+    // Find derived IVs: `t = i * scale` where `i` is a basic IV.
     let mut derived: Vec<DerivedIv> = Vec::new();
     for &b in &loop_nodes {
         for s in &blocks[b].stmts {
@@ -351,7 +363,7 @@ fn strength_reduce_iv(
         let step = basic_ivs[&dv.base_iv];
         let sr_var = format!("{}_sr", dv.var);
         let init_scale_var = format!("{}_init_mul", dv.var);
-        // Preheader: init_scale_var = base_iv * scale; sr_var = init_scale_var + offset.
+        // Preheader initialization: `sr_var = base_iv * scale + offset` runs once before the loop.
         out[preheader].stmts.push(Stmt::Assign {
             dst: init_scale_var.clone(),
             op: Op::Mul,
@@ -364,7 +376,7 @@ fn strength_reduce_iv(
             lhs: Operand::Var(init_scale_var),
             rhs: Operand::Const(dv.offset),
         });
-        // Replace `t = scale * i` in loop with `t = sr_var`, and update `sr_var = sr_var + scale * step` right after `i = i + step`.
+        // Replace `t = i * scale` with cheap `t = sr_var`, and keep `sr_var` in lockstep with `i`.
         for &b in &loop_nodes {
             let mut new_stmts = Vec::new();
             for s in &out[b].stmts {
@@ -401,7 +413,7 @@ fn strength_reduce_iv(
         }
     }
 
-    // Rewrite exit test `cond = i < limit` -> `cond = sr_var < limit * scale`, and prune `i = i + step` if `i` becomes dead!
+    // Linear-function test replacement: rewrite `cond = i < limit` -> `cond = sr_var < limit * scale`.
     let dv0 = derived[0].clone();
     let sr_var = format!("{}_sr", dv0.var);
     let mut exit_rewritten = false;
@@ -431,7 +443,8 @@ fn strength_reduce_iv(
     out[preheader].stmts.extend(preheader_adds);
 
     if exit_rewritten {
-        // Check if `base_iv` has any remaining uses inside or live-out of the loop.
+        // Dead-IV elimination: remove `i = i + step` only if `i` has no other uses inside the
+        // loop and is dead at all loop exits.
         let mut live_in = compute_live_in(&out);
         let used_in_loop = loop_nodes.iter().any(|&b| {
             out[b]

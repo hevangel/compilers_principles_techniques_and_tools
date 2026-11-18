@@ -6,6 +6,8 @@ import unittest
 
 
 class SwitchStrategy(Enum):
+    """Dispatch strategy chosen from case count and key density."""
+
     LINEAR_IF_ELSE = "LinearIfElse"
     JUMP_TABLE = "JumpTable"
     BINARY_SEARCH_TREE = "BinarySearchTree"
@@ -13,18 +15,24 @@ class SwitchStrategy(Enum):
 
 @dataclass(frozen=True)
 class IfEqJump:
+    """Branch to `target` if the switch key / loop variable equals `val`."""
+
     val: int
     target: str
 
 
 @dataclass(frozen=True)
 class IfLtJump:
+    """Branch to `target` if the switch key is strictly less than `val` (for BST dispatch)."""
+
     val: int
     target: str
 
 
 @dataclass(frozen=True)
 class JumpTable:
+    """Bounds-checked O(1) dispatch table covering keys `min_val .. min_val + len(table)`."""
+
     min_val: int
     default_label: str
     table: list[str]
@@ -32,42 +40,58 @@ class JumpTable:
 
 @dataclass(frozen=True)
 class Jump:
+    """Unconditional jump emitted directly during switch lowering."""
+
     target: str
 
 
 @dataclass(frozen=True)
 class Label:
+    """Named jump target placed in the flat instruction stream."""
+
     name: str
 
 
 @dataclass(frozen=True)
 class Emit:
+    """Observable trace output instruction."""
+
     val: int
 
 
 @dataclass(frozen=True)
 class IncrVar:
+    """Increment the loop induction variable `var` by 1."""
+
     pass
 
 
 @dataclass(frozen=True)
 class IfVarLtJump:
+    """Loop back-edge test: jump to `target` while `var < limit`."""
+
     limit: int
     target: str
 
 
 @dataclass(frozen=True)
 class BreakPlaceholder:
+    """Unresolved `break` jump site waiting to be backpatched when its construct finishes."""
+
     pass
 
 
 @dataclass(frozen=True)
 class ContinuePlaceholder:
+    """Unresolved `continue` jump site waiting to be backpatched to the enclosing loop step."""
+
     pass
 
 
 @dataclass(frozen=True)
 class PatchedJump:
+    """Resolved `break` or `continue` jump created by `backpatch`."""
+
     target: str
 
 
@@ -87,17 +111,20 @@ Instr = (
 
 
 def choose_strategy(arms: list[tuple[int, str]]) -> SwitchStrategy:
+    """Select linear checks for <=4 arms, jump table when >=50% dense, else BST."""
     if len(arms) <= 4:
         return SwitchStrategy.LINEAR_IF_ELSE
     min_v = min(v for v, _ in arms)
     max_v = max(v for v, _ in arms)
     span = max_v - min_v + 1
+    # Use integer math `2 * count >= span` to test density >= 0.5 without floating-point rounding.
     if len(arms) * 2 >= span:
         return SwitchStrategy.JUMP_TABLE
     return SwitchStrategy.BINARY_SEARCH_TREE
 
 
 def lower_switch(arms: list[tuple[int, str]], default_label: str) -> tuple[SwitchStrategy, list[Instr]]:
+    """Sort/dedup case arms by value and lower dispatch to linear, jump-table, or BST code."""
     dedup: dict[int, str] = {}
     for v, lbl in sorted(arms, key=lambda pair: pair[0]):
         dedup.setdefault(v, lbl)
@@ -112,12 +139,15 @@ def lower_switch(arms: list[tuple[int, str]], default_label: str) -> tuple[Switc
     elif strategy == SwitchStrategy.JUMP_TABLE:
         min_v = sorted_arms[0][0]
         max_v = sorted_arms[-1][0]
+        # Default-initialize all slots (including gaps between case values) to `default_label`.
         table = [default_label] * (max_v - min_v + 1)
         for val, lbl in sorted_arms:
             table[val - min_v] = lbl
         instrs.append(JumpTable(min_v, default_label, table))
     else:
         def emit_bst(sl: list[tuple[int, str]], prefix: str) -> None:
+            # Partition sorted keys at `mid`: branch to `left_lbl` if `key < mid_val`,
+            # match `mid_val`, or fall through into the right subrange.
             if not sl:
                 instrs.append(Jump(default_label))
                 return
@@ -139,6 +169,7 @@ def lower_switch(arms: list[tuple[int, str]], default_label: str) -> tuple[Switc
 
 
 def eval_switch_dispatch(instrs: list[Instr], key: int) -> str:
+    """Execute dispatch-only instructions for `key` and return the target arm or default label."""
     labels = {ins.name: i for i, ins in enumerate(instrs) if isinstance(ins, Label)}
     pc = 0
     for _ in range(10_000):
@@ -160,6 +191,7 @@ def eval_switch_dispatch(instrs: list[Instr], key: int) -> str:
             else:
                 pc += 1
         elif isinstance(ins, JumpTable):
+            # Bounds check both below `min_val` and above `max_val` before table indexing.
             if key < ins.min_val or key - ins.min_val >= len(ins.table):
                 target = ins.default_label
             else:
@@ -182,16 +214,22 @@ def eval_switch_dispatch(instrs: list[Instr], key: int) -> str:
 
 @dataclass(frozen=True)
 class EmitCaseValue:
+    """Marker statement that lowers to `Emit(1)`."""
+
     pass
 
 
 @dataclass(frozen=True)
 class BreakStmt:
+    """Structured break exiting the innermost `SwitchStmt` or `LoopStmt`."""
+
     pass
 
 
 @dataclass(frozen=True)
 class ContinueStmt:
+    """Structured continue jumping to the innermost enclosing `LoopStmt`'s step."""
+
     pass
 
 
@@ -211,7 +249,10 @@ StmtAst = EmitCaseValue | BreakStmt | ContinueStmt | SwitchStmt | LoopStmt
 
 
 class PatchContext:
+    """Tracks separate nested stacks of pending `break` and `continue` jump indices."""
+
     def __init__(self) -> None:
+        # Invariant: `SwitchStmt` pushes onto `break_lists` only; `LoopStmt` pushes onto both.
         self.break_lists: list[list[int]] = []
         self.continue_lists: list[list[int]] = []
         self.next_id = 0
@@ -223,11 +264,13 @@ class PatchContext:
 
 
 def backpatch(instrs: list[Instr], sites: list[int], target: str) -> None:
+    """Replace each placeholder index in `sites` with a `PatchedJump(target)`."""
     for idx in sites:
         instrs[idx] = PatchedJump(target)
 
 
 def lower_stmt_list(stmts: list[StmtAst], ctx: PatchContext, out: list[Instr]) -> None:
+    """Lower structured statements to flat instructions, backpatching `break` and `continue`."""
     for stmt in stmts:
         if isinstance(stmt, EmitCaseValue):
             out.append(Emit(1))
@@ -248,6 +291,8 @@ def lower_stmt_list(stmts: list[StmtAst], ctx: PatchContext, out: list[Instr]) -
                 case_labels.append(lbl)
             _, disp = lower_switch(arms, def_lbl)
             out.extend(disp)
+            # Push a new break scope for this switch, but leave `continue_lists` untouched
+            # so `continue` inside a case targets the enclosing loop's increment step.
             ctx.break_lists.append([])
             for (val, body), lbl in zip(stmt.cases, case_labels):
                 out.append(Label(lbl))
@@ -265,6 +310,7 @@ def lower_stmt_list(stmts: list[StmtAst], ctx: PatchContext, out: list[Instr]) -
             ctx.continue_lists.append([])
             out.append(Label(loop_head))
             lower_stmt_list(stmt.body, ctx, out)
+            # `continue` lands at `loop_step` (before `IncrVar`), not `loop_head`, so `var` still advances.
             out.append(Label(loop_step))
             out.append(IncrVar())
             out.append(IfVarLtJump(stmt.limit, loop_head))
@@ -274,6 +320,7 @@ def lower_stmt_list(stmts: list[StmtAst], ctx: PatchContext, out: list[Instr]) -
 
 
 def lower_program(stmts: list[StmtAst]) -> list[Instr]:
+    """Lower a top-level statement list with an empty `PatchContext`."""
     ctx = PatchContext()
     out: list[Instr] = []
     lower_stmt_list(stmts, ctx, out)
@@ -281,6 +328,7 @@ def lower_program(stmts: list[StmtAst]) -> list[Instr]:
 
 
 def run_lowered_program(instrs: list[Instr]) -> tuple[int, list[int]]:
+    """Execute a complete lowered instruction stream and return `(final_var, trace)`."""
     labels = {ins.name: i for i, ins in enumerate(instrs) if isinstance(ins, Label)}
     pc = 0
     var = 0

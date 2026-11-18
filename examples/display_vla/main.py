@@ -6,19 +6,29 @@ import unittest
 
 @dataclass
 class Frame:
+    """Activation record storing static-link, display save/restore, and VLA layout metadata."""
+
     proc_name: str
+    # Lexical nesting depth (0 = outermost); selects which slot in `display` this frame occupies.
     depth: int
+    # Enclosing lexical frame (depth - 1) used by static-link traversal.
     static_link: int | None
+    # Previous `display[depth]` saved on entry so returning restores the caller/sibling frame.
     saved_display: int | None
+    # Base offset in `RuntimeMachine.stack` where fixed-size locals start.
     locals_start: int
+    # Base offset of the dynamic VLA placed *after* fixed locals (or None if vla_len == 0).
     vla_ptr: int | None
     vla_len: int
 
 
 class RuntimeMachine:
+    """Simulated call stack comparing O(1) display lookups with O(depth) static-link walks."""
+
     def __init__(self, max_depth: int) -> None:
         self.stack: list[int] = []
         self.frames: list[Frame] = []
+        # Lexical display: `display[d]` caches the currently visible frame ID at depth `d`.
         self.display: list[int | None] = [None] * (max_depth + 1)
         self.static_hops = 0
         self.display_hops = 0
@@ -26,10 +36,14 @@ class RuntimeMachine:
     def push_frame(
         self, proc_name: str, depth: int, fixed_locals: list[int], vla_len: int
     ) -> int:
+        # Static parent is the active frame one lexical level outward.
         static_link = None if depth == 0 else self.display[depth - 1]
+        # Snapshot old `display[depth]` so recursive or same-depth sibling calls don't lose it.
         saved_display = self.display[depth]
+        # Fixed locals come first so their offsets from `locals_start` stay constant at compile time.
         locals_start = len(self.stack)
         self.stack.extend(fixed_locals)
+        # Dynamic VLA sits after fixed locals and is accessed indirectly via `vla_ptr`.
         vla_ptr = None
         if vla_len > 0:
             vla_ptr = len(self.stack)
@@ -46,27 +60,32 @@ class RuntimeMachine:
                 vla_len,
             )
         )
+        # Invariant: `display[depth]` always points to the innermost active frame at `depth`.
         self.display[depth] = frame_id
         return frame_id
 
     def pop_frame(self) -> None:
+        """Restore `display[depth]` and reclaim both fixed locals and VLA space in one step."""
         frame = self.frames.pop()
         self.display[frame.depth] = frame.saved_display
         del self.stack[frame.locals_start :]
 
     def read_via_display(self, target_depth: int, local_offset: int) -> int:
+        """O(1) nonlocal access: index `display[target_depth]` directly (always 1 hop)."""
         self.display_hops += 1
         frame_id = self.display[target_depth]
         assert frame_id is not None
         return self.stack[self.frames[frame_id].locals_start + local_offset]
 
     def read_via_static_link(self, target_depth: int, local_offset: int) -> int:
+        """O(depth) nonlocal access: walk `static_link` pointers up to `target_depth`."""
         cur = len(self.frames) - 1
         while self.frames[cur].depth > target_depth:
             self.static_hops += 1
             nxt = self.frames[cur].static_link
             assert nxt is not None
             cur = nxt
+        # Count the final dereference into the target frame's local slot.
         self.static_hops += 1
         return self.stack[self.frames[cur].locals_start + local_offset]
 

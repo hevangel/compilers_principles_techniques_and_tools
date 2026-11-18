@@ -2,12 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Grammar symbol: either a concrete input token (`Terminal`) or a rule head (`NonTerminal`).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Symbol {
     Terminal(String),
     NonTerminal(String),
 }
 
+/// Context-free grammar with an explicit nonterminal ordering (`nonterminals`)
+/// used by left-recursion elimination. An empty `Vec<Symbol>` represents epsilon (`eps`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Cfg {
     nonterminals: Vec<String>,
@@ -16,6 +19,7 @@ struct Cfg {
 }
 
 impl Cfg {
+    /// Generate a collision-free nonterminal name such as `A'`, `A'1`, or `S_f`.
     fn fresh_name(&self, base: &str, used: &mut BTreeSet<String>, suffix: &str) -> String {
         let mut candidate = format!("{base}{suffix}");
         let mut counter = 1;
@@ -28,6 +32,8 @@ impl Cfg {
     }
 }
 
+/// Check structural preconditions before rewriting: start symbol exists, every
+/// nonterminal has >= 1 production, and there are no pure unit cycles (`A =>+ A`).
 fn validate_cfg(cfg: &Cfg) -> Result<(), String> {
     if !cfg.prods.contains_key(&cfg.start) {
         return Err(format!("missing start symbol {}", cfg.start));
@@ -89,6 +95,9 @@ fn validate_cfg(cfg: &Cfg) -> Result<(), String> {
     Ok(())
 }
 
+/// Remove both indirect and direct left recursion using Paull's ordered algorithm.
+/// Invariant after step `i`: for every `k <= i`, no production of `A_k` starts with
+/// any `A_m` where `m <= k`.
 fn eliminate_left_recursion(cfg: &Cfg) -> Result<Cfg, String> {
     validate_cfg(cfg)?;
     let mut prods = cfg.prods.clone();
@@ -97,7 +106,8 @@ fn eliminate_left_recursion(cfg: &Cfg) -> Result<Cfg, String> {
 
     for i in 0..order.len() {
         let ai = order[i].clone();
-        // Substitute A_i -> A_j gamma for j < i.
+        // Substitute A_i -> A_j gamma for every j < i to convert indirect left recursion
+        // (cycles through earlier nonterminals) into direct left recursion on A_i.
         let earlier = order[..i].to_vec();
         for aj in &earlier {
             let aj_alts = prods.get(aj).cloned().unwrap_or_default();
@@ -120,7 +130,7 @@ fn eliminate_left_recursion(cfg: &Cfg) -> Result<Cfg, String> {
             prods.insert(ai.clone(), updated);
         }
 
-        // Eliminate immediate left recursion among A_i productions.
+        // Partition A_i's rules into left-recursive (`A_i alpha`) and non-left-recursive (`beta`).
         let alts = prods.get(&ai).cloned().unwrap_or_default();
         let mut alphas = Vec::new();
         let mut betas = Vec::new();
@@ -135,11 +145,14 @@ fn eliminate_left_recursion(cfg: &Cfg) -> Result<Cfg, String> {
         }
 
         if !alphas.is_empty() {
+            // Without at least one base case `beta`, `A_i` generates no finite terminal strings.
             if betas.is_empty() {
                 return Err(format!(
                     "nonterminal {ai} has no non-left-recursive base case"
                 ));
             }
+            // Rewrite `A_i -> A_i alpha | beta` into right-recursive `A_i -> beta A_i'`
+            // and `A_i' -> alpha A_i' | eps`.
             let tail_nt = cfg.fresh_name(&ai, &mut used, "'");
             let new_ai: Vec<Vec<Symbol>> = betas
                 .into_iter()
@@ -169,6 +182,8 @@ fn eliminate_left_recursion(cfg: &Cfg) -> Result<Cfg, String> {
     })
 }
 
+/// Iteratively extract the longest common non-empty prefix shared by >= 2 alternatives
+/// of a nonterminal, moving their differing suffixes into a fresh tail rule.
 fn left_factor(cfg: &Cfg) -> Cfg {
     let mut prods = cfg.prods.clone();
     let mut order = cfg.nonterminals.clone();
@@ -203,6 +218,7 @@ fn left_factor(cfg: &Cfg) -> Cfg {
             let prefix_len = best_prefix.len();
             let mut factored_tails = Vec::new();
             let mut remaining = Vec::new();
+            // Note: if one alternative equals `best_prefix` exactly, its suffix is `[]` (epsilon).
             for rhs in alts {
                 if rhs.starts_with(&best_prefix) {
                     factored_tails.push(rhs[prefix_len..].to_vec());
@@ -231,6 +247,7 @@ fn left_factor(cfg: &Cfg) -> Cfg {
     }
 }
 
+/// Detect whether any nonterminal `A` can reach itself along leftmost production symbols (`A =>+ A ...`).
 fn has_left_recursion(cfg: &Cfg) -> bool {
     for start in &cfg.nonterminals {
         let mut seen = BTreeSet::new();

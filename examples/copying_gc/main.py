@@ -6,9 +6,12 @@ import unittest
 
 @dataclass
 class HeapObj:
+    """Heap object holding reference fields plus GC mark/forwarding metadata."""
+
     tag: str
     fields: list[int | None]
     marked: bool = False
+    # Forwarding pointer: destination slot index in `to_space` or compacted prefix.
     forwarded: int | None = None
 
     def clone_fresh(self) -> "HeapObj":
@@ -16,6 +19,8 @@ class HeapObj:
 
 
 class SemispaceHeap:
+    """Two-semispace heap using Cheney breadth-first copying without an auxiliary mark stack."""
+
     def __init__(self, capacity: int) -> None:
         self.from_space: list[HeapObj | None] = [None] * capacity
         self.to_space: list[HeapObj | None] = [None] * capacity
@@ -28,7 +33,9 @@ class SemispaceHeap:
         raise RuntimeError("from_space exhausted")
 
     def cheney_collect(self, roots: list[int]) -> tuple[int, int]:
+        """Evacuate live objects from `from_space` to `to_space` using `scan` and `free` cursors."""
         self.to_space = [None] * len(self.to_space)
+        # Invariant: `0..scan` = scanned objects; `scan..free` = copied BFS queue; `free..` = empty.
         free = 0
         scan = 0
         copies = 0
@@ -37,18 +44,22 @@ class SemispaceHeap:
             nonlocal free, copies
             slot = self.from_space[old_idx]
             assert slot is not None
+            # Reuse forwarding pointer if already copied (prevents duplicating shared DAGs & cycles).
             if slot.forwarded is not None:
                 return slot.forwarded
             new_idx = free
             free += 1
             copies += 1
+            # Store forwarding pointer immediately so subsequent edges to `old_idx` find `new_idx`.
             slot.forwarded = new_idx
             self.to_space[new_idx] = slot.clone_fresh()
             return new_idx
 
+        # Step 1: evacuate roots and rewrite root handles.
         for i, r in enumerate(roots):
             roots[i] = copy_ref(r)
 
+        # Step 2: sweep `scan` across newly copied objects, updating their outgoing pointers.
         while scan < free:
             obj = self.to_space[scan]
             assert obj is not None
@@ -57,20 +68,25 @@ class SemispaceHeap:
                     obj.fields[fi] = copy_ref(f)
             scan += 1
 
+        # Step 3: flip semispaces; `to_space` becomes active `from_space`.
         self.from_space, self.to_space = self.to_space, [None] * len(self.to_space)
         return free, copies
 
 
 @dataclass
 class SlidingHeap:
+    """Single-space heap compacted in place via 3-pass sliding Mark-Compact."""
+
     slots: list[HeapObj | None] = field(default_factory=list)
 
     def mark_compact(self, roots: list[int]) -> int:
+        """Run 3 passes: mark live objects, assign dense `forwarded` targets, update & slide."""
         for obj in self.slots:
             if obj is not None:
                 obj.marked = False
                 obj.forwarded = None
 
+        # Pass 1: DFS mark reachable objects from roots.
         stack = list(roots)
         while stack:
             idx = stack.pop()
@@ -81,6 +97,7 @@ class SlidingHeap:
                     if child is not None:
                         stack.append(child)
 
+        # Pass 2: compute contiguous destination slots in scan order (preserves allocation order).
         free = 0
         for obj in self.slots:
             if obj is not None and obj.marked:
@@ -92,6 +109,7 @@ class SlidingHeap:
             assert obj is not None and obj.forwarded is not None
             return obj.forwarded
 
+        # Pass 3: rewrite roots and field pointers *before* moving objects into `0..free`.
         for i, r in enumerate(roots):
             roots[i] = new_addr(r)
 
@@ -111,6 +129,7 @@ class SlidingHeap:
 def canonical_graph(
     slots: list[HeapObj | None], roots: list[int]
 ) -> list[tuple[str, list[int | None]]]:
+    """Produce a slot-independent BFS canonical form to verify graph isomorphism across GC."""
     visited: dict[int, int] = {}
     queue: list[int] = []
     for r in roots:

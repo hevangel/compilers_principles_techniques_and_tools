@@ -6,11 +6,15 @@ import unittest
 
 @dataclass(frozen=True)
 class Terminal:
+    """Leaf token symbol in a context-free grammar production."""
+
     name: str
 
 
 @dataclass(frozen=True)
 class NonTerminal:
+    """Rule head symbol in a context-free grammar production."""
+
     name: str
 
 
@@ -19,11 +23,17 @@ Symbol = Terminal | NonTerminal
 
 @dataclass
 class Cfg:
+    """Context-free grammar with ordered nonterminals and production alternatives.
+
+    An empty `list[Symbol]` (`[]`) encodes epsilon (`eps`).
+    """
+
     nonterminals: list[str]
     start: str
     prods: dict[str, list[list[Symbol]]]
 
     def fresh_name(self, base: str, used: set[str], suffix: str) -> str:
+        """Allocate a nonterminal name not present in `used` (e.g., `A'`, `S_f`)."""
         candidate = f"{base}{suffix}"
         counter = 1
         while candidate in used:
@@ -34,6 +44,7 @@ class Cfg:
 
 
 def validate_cfg(cfg: Cfg) -> None:
+    """Ensure start/nonterminals are defined and reject pure unit cycles (`A =>+ A`)."""
     if cfg.start not in cfg.prods:
         raise ValueError(f"missing start symbol {cfg.start}")
     for nt in cfg.nonterminals:
@@ -69,6 +80,11 @@ def validate_cfg(cfg: Cfg) -> None:
 
 
 def eliminate_left_recursion(cfg: Cfg) -> Cfg:
+    """Eliminate indirect and direct left recursion via ordered substitution (`j < i`).
+
+    Invariant after outer iteration `i`: no production of `A_k` (`k <= i`) begins with
+    `A_m` (`m <= k`), so no indirect left-recursive cycle can remain among processed rules.
+    """
     validate_cfg(cfg)
     prods = {k: [list(rhs) for rhs in v] for k, v in cfg.prods.items()}
     order = list(cfg.nonterminals)
@@ -76,6 +92,7 @@ def eliminate_left_recursion(cfg: Cfg) -> Cfg:
 
     for i in range(len(order)):
         ai = order[i]
+        # Substitute earlier rules `A_j` (`j < i`) into leading occurrences `A_i -> A_j tail`.
         for j in range(i):
             aj = order[j]
             aj_alts = prods.get(aj, [])
@@ -89,6 +106,7 @@ def eliminate_left_recursion(cfg: Cfg) -> Cfg:
                     updated.append(rhs)
             prods[ai] = updated
 
+        # Split remaining alternatives into left-recursive (`A_i alpha`) and base (`beta`).
         alphas: list[list[Symbol]] = []
         betas: list[list[Symbol]] = []
         for rhs in prods.get(ai, []):
@@ -97,6 +115,7 @@ def eliminate_left_recursion(cfg: Cfg) -> Cfg:
             else:
                 betas.append(rhs)
         if alphas:
+            # Base-less recursion (`A -> A a`) cannot derive any finite terminal string.
             if not betas:
                 raise ValueError(f"nonterminal {ai} has no non-left-recursive base case")
             tail_nt = cfg.fresh_name(ai, used, "'")
@@ -108,6 +127,7 @@ def eliminate_left_recursion(cfg: Cfg) -> Cfg:
 
 
 def left_factor(cfg: Cfg) -> Cfg:
+    """Repeatedly extract the longest shared prefix among >= 2 alternatives of a rule."""
     prods = {k: [list(rhs) for rhs in v] for k, v in cfg.prods.items()}
     order = list(cfg.nonterminals)
     used = set(order)
@@ -136,6 +156,7 @@ def left_factor(cfg: Cfg) -> Cfg:
             prefix_len = len(best_prefix)
             factored_tails: list[list[Symbol]] = []
             remaining: list[list[Symbol]] = []
+            # Alternatives equal to `best_prefix` leave an empty (`eps`) suffix in `fresh`.
             for rhs in alts:
                 if rhs[:prefix_len] == best_prefix:
                     factored_tails.append(rhs[prefix_len:])
@@ -154,6 +175,7 @@ def left_factor(cfg: Cfg) -> Cfg:
 
 
 def has_left_recursion(cfg: Cfg) -> bool:
+    """Return True if any nonterminal can reach itself via leftmost nonterminals."""
     for start in cfg.nonterminals:
         seen: set[str] = set()
         stack = [start]

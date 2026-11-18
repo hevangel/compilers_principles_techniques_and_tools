@@ -5,6 +5,8 @@ from enum import Enum
 import unittest
 
 
+# Primitive types ordered strictly from narrowest to widest:
+# Bool -> Char -> Int -> Float -> Double.
 class Type(Enum):
     BOOL = "Bool"
     CHAR = "Char"
@@ -13,6 +15,7 @@ class Type(Enum):
     DOUBLE = "Double"
 
 
+# Explicit single-step widening conversions inserted into resolved calls.
 class CoercionOp(Enum):
     B2C = "B2C"
     C2I = "C2I"
@@ -45,6 +48,7 @@ class ResolvedLit:
     ty: Type
 
 
+# Resolved call stores each argument alongside the CoercionOps needed to widen it.
 @dataclass(frozen=True)
 class ResolvedCall:
     name: str
@@ -67,6 +71,7 @@ class AmbiguousError(OverloadError):
     pass
 
 
+# Acyclic one-way widening chain; Double has no entry so narrowing is rejected.
 NEXT_WIDER: dict[Type, tuple[Type, CoercionOp]] = {
     Type.BOOL: (Type.CHAR, CoercionOp.B2C),
     Type.CHAR: (Type.INT, CoercionOp.C2I),
@@ -76,6 +81,7 @@ NEXT_WIDER: dict[Type, tuple[Type, CoercionOp]] = {
 
 
 def coercion_chain(src: Type, dst: Type) -> list[CoercionOp] | None:
+    """Return widening steps from `src` to `dst`, or None if narrowing would be required."""
     cur = src
     ops: list[CoercionOp] = []
     while cur != dst:
@@ -88,6 +94,7 @@ def coercion_chain(src: Type, dst: Type) -> list[CoercionOp] | None:
 
 
 def widen(t1: Type, t2: Type) -> tuple[Type, list[CoercionOp], list[CoercionOp]] | None:
+    """Return `(common_supertype, ops_for_t1, ops_for_t2)` along the widening chain."""
     ops1 = coercion_chain(t1, t2)
     if ops1 is not None:
         return t2, ops1, []
@@ -97,6 +104,7 @@ def widen(t1: Type, t2: Type) -> tuple[Type, list[CoercionOp], list[CoercionOp]]
     return None
 
 
+# Bottom-up candidate carrying its return type, total coercion step cost, and resolved tree.
 @dataclass(frozen=True)
 class Candidate:
     ret: Type
@@ -105,6 +113,7 @@ class Candidate:
 
 
 def synthesize_candidates(expr: Expr, overloads: dict[str, list[Signature]]) -> list[Candidate]:
+    """Pass 1 (bottom-up): synthesize all viable overloads and their minimum arg coercion costs."""
     if isinstance(expr, LitExpr):
         return [Candidate(expr.ty, 0, ResolvedLit(expr.ty))]
     if expr.name not in overloads:
@@ -147,6 +156,7 @@ def synthesize_candidates(expr: Expr, overloads: dict[str, list[Signature]]) -> 
 def resolve_overload(
     expr: Expr, expected_ret: Type | None, overloads: dict[str, list[Signature]]
 ) -> ResolvedExpr:
+    """Pass 2 (top-down): narrow candidates by `expected_ret` and pick the unique min-cost winner."""
     cands = synthesize_candidates(expr, overloads)
     if expected_ret is not None:
         narrowed: list[Candidate] = []

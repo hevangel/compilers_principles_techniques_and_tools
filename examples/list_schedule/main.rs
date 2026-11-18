@@ -1,5 +1,8 @@
 //! Schedule instructions subject to dependencies, latency, and issue width.
 
+/// Represents one instruction node in a basic-block data-dependence DAG.
+/// - `latency`: cycles from issue until the instruction's result can be read by consumers.
+/// - `depends_on`: indices of producer instructions whose results must be ready first.
 #[derive(Debug)]
 struct Task {
     name: &'static str,
@@ -7,7 +10,13 @@ struct Task {
     depends_on: &'static [usize],
 }
 
+/// Greedy basic-block list scheduler.
+/// Returns `Some(issue_cycles)` matching `tasks` order, or `None` on invalid input or cycles.
+/// Invariant: for every dependence `dep -> index`, `issued[index] >= issued[dep] + tasks[dep].latency`,
+/// and at most `width` instructions share the same issue cycle.
 fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
+    // Reject zero issue width, zero-cycle latencies (which would break strict progress),
+    // or out-of-bounds producer references up front.
     if width == 0
         || tasks
             .iter()
@@ -15,18 +24,21 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
     {
         return None;
     }
-    // Store a start cycle once a task issues. None means it has yet to start.
+    // `issued[i]` stores the assigned start cycle once task `i` issues; `None` means unscheduled.
     let mut issued = vec![None::<u32>; tasks.len()];
     let mut pending = tasks.len();
     let mut cycle = 0_u32;
     while pending > 0 {
         let mut slots = width;
+        // Tracks the earliest cycle > `cycle` at which at least one currently-blocked
+        // (but predecessor-complete) task could issue, letting us fast-forward over stalls.
         let mut next_ready = None;
         for (index, task) in tasks.iter().enumerate() {
             if issued[index].is_some() {
                 continue;
             }
-            // Readiness is the latest completion time of all predecessors.
+            // Data-dependence constraint: a task is data-ready only after *all* producers have
+            // issued, at `ready_at = max_{dep} (issued[dep] + latency[dep])`.
             let mut ready_at = Some(0);
             for &dep in task.depends_on {
                 let Some(start) = issued[dep] else {
@@ -36,12 +48,16 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
                 ready_at = ready_at.max(Some(start.checked_add(tasks[dep].latency)?));
             }
             if let Some(ready_at) = ready_at {
-                // A ready instruction also needs a free issue slot this cycle.
+                // Both data-readiness (`ready_at <= cycle`) and hardware capacity (`slots > 0`)
+                // must hold to issue in the current cycle. (Input order breaks ties among ready tasks;
+                // a priority list scheduler would sort ready tasks by critical-path height first.)
                 if ready_at <= cycle && slots > 0 {
                     issued[index] = Some(cycle);
                     slots -= 1;
                     pending -= 1;
                 } else {
+                    // If already data-ready but out of slots, it can try again at `cycle + 1`;
+                    // otherwise it cannot start before `ready_at`.
                     let candidate = if ready_at <= cycle {
                         cycle.checked_add(1)?
                     } else {
@@ -53,11 +69,14 @@ fn schedule(tasks: &[Task], width: usize) -> Option<Vec<u32>> {
             }
         }
         if pending > 0 {
-            // Tasks encountered before a producer may now have all predecessors issued.
+            // If anything issued this cycle (`slots < width`), advance by 1 cycle because
+            // tasks earlier in input order might now see newly-issued producers.
             if slots < width {
                 cycle = cycle.checked_add(1)?;
             } else {
-                // Skip idle cycles. No known future readiness means pending dependencies are cyclic.
+                // Nothing could issue in `cycle`: jump straight to `next_ready` to skip idle cycles.
+                // If `next_ready` is `None`, every remaining task has an unissued predecessor,
+                // which implies a cycle in the dependence graph.
                 cycle = next_ready?;
             }
         }

@@ -2,12 +2,15 @@
 
 use std::collections::BTreeMap;
 
+// Static types tracked in the symbol table and returned by type checking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Type {
     Integer,
     Boolean,
 }
 
+// Expression AST nodes; notice syntax allows `Add` on any subexpressions, so semantic
+// analysis must enforce that both operands actually evaluate to `Type::Integer`.
 enum Expr<'a> {
     Name(&'a str),
     // This tree records that a literal is an integer. The value is irrelevant to type checking.
@@ -15,6 +18,7 @@ enum Expr<'a> {
     Add(Box<Expr<'a>>, Box<Expr<'a>>),
 }
 
+// Semantic errors separated by phase/cause: duplicate decl, missing symbol, or type mismatch.
 #[derive(Debug, Eq, PartialEq)]
 enum Error<'a> {
     Duplicate(&'a str),
@@ -22,8 +26,12 @@ enum Error<'a> {
     ExpectedInteger(Type),
 }
 
+// One lexical block's symbol table. A slice `&[Scope]` represents nested blocks ordered
+// outermost (index 0) to innermost (last element).
 type Scope<'a> = BTreeMap<&'a str, Type>;
 
+// Insert a binding into the *current* scope only; shadowing an outer scope is legal,
+// whereas redeclaring the same name in the same scope is rejected without overwriting.
 fn declare<'a>(scope: &mut Scope<'a>, name: &'a str, ty: Type) -> Result<(), Error<'a>> {
     // A duplicate in this scope must leave the original declaration intact.
     match scope.entry(name) {
@@ -35,6 +43,7 @@ fn declare<'a>(scope: &mut Scope<'a>, name: &'a str, ty: Type) -> Result<(), Err
     }
 }
 
+// Synthesize the static type of `expr` under the lexical scope stack `scopes`.
 fn type_of<'a>(expr: &Expr<'a>, scopes: &[Scope<'a>]) -> Result<Type, Error<'a>> {
     match expr {
         // Search from the innermost scope outward so the nearest declaration wins.

@@ -2,8 +2,12 @@
 
 use std::collections::BTreeSet;
 
+/// Points-to set for a single program variable: abstract allocation-site labels it may reference.
 type Sites = BTreeSet<&'static str>;
 
+/// Least fixed-point solver for Andersen-style inclusion constraints `pts[src] ⊆ pts[dst]`.
+/// Termination invariant: the set of allocation sites is finite and set union only grows sets
+/// monotonically, so at most `|nodes| * |sites|` additions can ever occur—even across cycles.
 fn solve(mut points_to: Vec<Sites>, inclusions: &[(usize, usize)]) -> Vec<Sites> {
     // Each pass adds facts to finite sets until no constraint adds anything new.
     loop {
@@ -21,12 +25,14 @@ fn solve(mut points_to: Vec<Sites>, inclusions: &[(usize, usize)]) -> Vec<Sites>
     }
 }
 
+/// Encodes `a = new A; b = new B; x = relay(a); y = relay(b)` with shared `relay` nodes.
 fn example() -> Vec<Sites> {
     // a = new A; b = new B; x = relay(a); y = relay(b)
     // relay(p) { return p }
     const A: usize = 0;
     const B: usize = 1;
-    // Both call sites use these same callee nodes, which merges their facts.
+    // Both call sites use these same callee nodes (context-insensitive), which merges
+    // `{alloc_A}` and `{alloc_B}` into `relay.p` and flows both back to `x` and `y`.
     const PARAMETER: usize = 2;
     const RETURN: usize = 3;
     const X: usize = 4;
@@ -35,6 +41,8 @@ fn example() -> Vec<Sites> {
     // Allocation sites seed the initial facts before any propagation.
     initial[A].insert("alloc_A");
     initial[B].insert("alloc_B");
+    // Return edges are intentionally listed before call-argument edges so multiple
+    // fixed-point iterations are required to propagate facts end-to-end.
     solve(
         initial,
         &[

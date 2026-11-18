@@ -2,12 +2,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Hardware execution units modeled in the modulo reservation table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum ResourceUnit {
     Alu,
     Mem,
 }
 
+/// Abstract loop operations executed by both the sequential reference and pipelined interpreter.
 #[derive(Clone, Copy, Debug)]
 enum OpKind {
     Load { dst: usize, base: usize },
@@ -17,6 +19,7 @@ enum OpKind {
     Store { src: usize, base: usize },
 }
 
+/// One operation inside the inner loop body with its resource unit and execution latency.
 #[derive(Clone, Debug)]
 struct LoopOp {
     id: usize,
@@ -26,6 +29,9 @@ struct LoopOp {
     kind: OpKind,
 }
 
+/// Dependence edge `from -> to`:
+/// iteration `i` of `from` must finish `latency` cycles before iteration `i + dist` of `to` starts.
+/// In modulo schedule notation: `S(from) + latency <= S(to) + dist * II`.
 #[derive(Clone, Copy, Debug)]
 struct DepEdge {
     from: usize,
@@ -34,6 +40,7 @@ struct DepEdge {
     dist: i64,
 }
 
+/// Complete specification of an inner loop kernel and its target machine's functional-unit counts.
 #[derive(Clone, Debug)]
 struct LoopKernel {
     ops: Vec<LoopOp>,
@@ -41,6 +48,7 @@ struct LoopKernel {
     capacities: BTreeMap<ResourceUnit, usize>,
 }
 
+/// Result of modulo scheduling: start times for iteration 0 plus MVE unroll metadata.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ModuloSchedule {
     ii: usize,
@@ -55,6 +63,9 @@ fn ceil_div(a: usize, b: usize) -> usize {
     a.div_ceil(b)
 }
 
+/// Resource-constrained Minimum Initiation Interval (`MII_res`):
+/// If `ops_u` operations use unit `u` per iteration and `cap_u` units are available per cycle,
+/// launching an iteration every `II` cycles requires `II * cap_u >= ops_u`, so `II >= ceil(ops_u / cap_u)`.
 fn compute_mii_res(ops: &[LoopOp], capacities: &BTreeMap<ResourceUnit, usize>) -> usize {
     let mut counts: BTreeMap<ResourceUnit, usize> = BTreeMap::new();
     for op in ops {
@@ -68,7 +79,9 @@ fn compute_mii_res(ops: &[LoopOp], capacities: &BTreeMap<ResourceUnit, usize>) -
     max_res
 }
 
-// Enumerate elementary cycles via Tarjan/Johnson-style bounded DFS from each start node.
+/// Enumerate elementary cycles via bounded DFS from each start node (`edge.to > start` canonicalization
+/// visits each simple cycle once). Summing `S(u) + L_e - D_e * II <= S(v)` around a cycle cancels all
+/// `S(...)` terms and yields `sum(L) <= sum(D) * II`, i.e., `II >= ceil(sum(L) / sum(D))`.
 fn dfs_cycles(
     start: usize,
     curr: usize,
@@ -94,6 +107,8 @@ fn dfs_cycles(
     }
 }
 
+/// Recurrence-constrained Minimum Initiation Interval (`MII_rec`):
+/// maximum `ceil(sum L / sum D)` across all elementary dependence cycles.
 fn compute_mii_rec(n: usize, edges: &[DepEdge]) -> usize {
     let mut adj = vec![Vec::new(); n];
     for &e in edges {
@@ -109,6 +124,9 @@ fn compute_mii_rec(n: usize, edges: &[DepEdge]) -> usize {
     best_rec
 }
 
+/// Backtracking search for a valid schedule at a candidate initiation interval `ii`.
+/// Uses `res_table[c % ii]` (the modulo reservation table) because in steady state,
+/// operation `op` from iterations `..., i, i+1, ...` occupies `c % ii` on every beat.
 fn try_schedule_for_ii(
     kernel: &LoopKernel,
     ii: usize,
@@ -122,7 +140,8 @@ fn try_schedule_for_ii(
         return true;
     }
 
-    // Compute tighter [earliest, latest] window from already-scheduled neighbors.
+    // Tighten [earliest, latest] from already-scheduled predecessors and successors
+    // using `S(u) + L - D * II <= S(v)`.
     let mut earliest = 0i64;
     let mut latest = max_cycle as i64;
     for &e in &kernel.edges {
@@ -163,6 +182,8 @@ fn try_schedule_for_ii(
     false
 }
 
+/// Find the smallest feasible initiation interval `II >= max(MII_res, MII_rec)` and
+/// compute the MVE unroll factor needed to avoid scalar register clobbering across iterations.
 fn modulo_schedule(kernel: &LoopKernel) -> ModuloSchedule {
     let mii_res = compute_mii_res(&kernel.ops, &kernel.capacities);
     let mii_rec = compute_mii_rec(kernel.ops.len(), &kernel.edges);
@@ -175,10 +196,13 @@ fn modulo_schedule(kernel: &LoopKernel) -> ModuloSchedule {
         let mut res_table = vec![BTreeMap::new(); ii];
         if try_schedule_for_ii(kernel, ii, 0, max_cycle, &mut schedule, &mut res_table) {
             let start_cycles: Vec<usize> = schedule.into_iter().map(|s| s.unwrap()).collect();
+            // Stage index of op is `start_cycles[op] / II`, so total overlapping stages is `max(stage) + 1`.
             let num_stages = start_cycles.iter().map(|&c| c / ii + 1).max().unwrap_or(1);
 
             // Compute inclusive register lifetime span across dependence edges plus op latency
             // so a producer at S(u) + II cannot overwrite cycle S(v) before the consumer reads it.
+            // With inclusive span `max_span`, at most `ceil((max_span + 1) / II)` dynamic instances
+            // of a virtual register are simultaneously live.
             let mut max_span = 0usize;
             for &e in &kernel.edges {
                 let span = (start_cycles[e.to] as i64 + e.dist * (ii as i64)
@@ -204,6 +228,8 @@ fn modulo_schedule(kernel: &LoopKernel) -> ModuloSchedule {
     }
 }
 
+/// One emitted instruction instance with its pipeline stage (`iter_offset`), rotated MVE bank,
+/// and cycle offset inside its II beat.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ScheduledInst {
     op_id: usize,
@@ -213,6 +239,7 @@ struct ScheduledInst {
     cycle_in_ii: usize,
 }
 
+/// Software-pipelined schedule split into ramp-up prologue, unrolled steady-state kernel, and epilogue.
 #[derive(Clone, Debug)]
 struct PipelinedProgram {
     schedule: ModuloSchedule,

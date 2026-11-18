@@ -6,17 +6,22 @@ import unittest
 
 @dataclass(frozen=True)
 class Terminal:
+    """Concrete input character symbol."""
+
     ch: str
 
 
 @dataclass(frozen=True)
 class Rule:
+    """Nonterminal rule ID indexing into `first` / `follow` arrays."""
+
     index: int
 
 
 Symbol = Terminal | Rule
 Grammar = list[tuple[int, list[Symbol]]]
 
+# S -> [ S ] S | epsilon
 GRAMMAR: Grammar = [
     (0, [Terminal("["), Rule(0), Terminal("]"), Rule(0)]),
     (0, []),
@@ -24,6 +29,8 @@ GRAMMAR: Grammar = [
 
 
 class PredictionCollisionError(ValueError):
+    """Raised when two productions claim the same `(nonterminal, lookahead)` cell."""
+
     def __init__(self, lhs: int, token: str) -> None:
         super().__init__(f"LL(1) collision at rule {lhs}, token {token!r}")
         self.lhs = lhs
@@ -31,6 +38,7 @@ class PredictionCollisionError(ValueError):
 
 
 def first_of(sequence: list[Symbol], first: list[tuple[set[str], bool]]) -> tuple[set[str], bool]:
+    """Compute `(FIRST(sequence), nullable)` stopping at the first non-nullable symbol."""
     result: set[str] = set()
     for symbol in sequence:
         if isinstance(symbol, Terminal):
@@ -44,6 +52,7 @@ def first_of(sequence: list[Symbol], first: list[tuple[set[str], bool]]) -> tupl
 
 
 def predict(grammar: Grammar, rules: int) -> dict[tuple[int, str], int]:
+    """Compute FIRST and FOLLOW to fixed points, then build the LL(1) prediction table."""
     first: list[tuple[set[str], bool]] = [(set(), False) for _ in range(rules)]
     while True:
         previous = [(set(t), n) for t, n in first]
@@ -54,6 +63,7 @@ def predict(grammar: Grammar, rules: int) -> dict[tuple[int, str], int]:
             break
 
     follow: list[set[str]] = [set() for _ in range(rules)]
+    # Start symbol (rule 0) can always be followed by end-of-input `$`.
     follow[0].add("$")
     while True:
         previous_follow = [set(s) for s in follow]
@@ -61,6 +71,7 @@ def predict(grammar: Grammar, rules: int) -> dict[tuple[int, str], int]:
             for idx, symbol in enumerate(rhs):
                 if isinstance(symbol, Rule):
                     tokens, nullable = first_of(rhs[idx + 1 :], first)
+                    # A nullable trailing suffix lets FOLLOW(lhs) propagate into FOLLOW(symbol).
                     if nullable:
                         tokens = tokens | follow[lhs]
                     follow[symbol.index] |= tokens
@@ -81,8 +92,10 @@ def predict(grammar: Grammar, rules: int) -> dict[tuple[int, str], int]:
 
 
 def parse(text: str, grammar: Grammar, table: dict[tuple[int, str], int]) -> bool:
+    """Run an explicit-stack LL(1) parser on `text` terminated with `$`."""
     tokens = list(text) + ["$"]
     pos = 0
+    # Push `$` below `Rule(0)` so stack underflow cannot accept premature EOF.
     stack: list[Symbol] = [Terminal("$"), Rule(0)]
     while stack:
         symbol = stack.pop()
@@ -95,7 +108,9 @@ def parse(text: str, grammar: Grammar, table: dict[tuple[int, str], int]) -> boo
             if pos >= len(tokens) or (symbol.index, tokens[pos]) not in table:
                 return False
             prod_idx = table[(symbol.index, tokens[pos])]
+            # Reverse RHS so the first symbol ends up on top of the stack.
             stack.extend(reversed(grammar[prod_idx][1]))
+    # Ensure all tokens including the appended `$` were consumed (rejects embedded `$`).
     return pos == len(tokens)
 
 

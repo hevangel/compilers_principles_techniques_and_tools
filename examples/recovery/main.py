@@ -6,11 +6,14 @@ import unittest
 
 @dataclass(frozen=True)
 class Diagnostic:
+    """Syntax diagnostic reporting a UTF-8 byte offset and human-readable message."""
+
     offset: int
     message: str
 
 
 def split_inclusive_semicolon(text: str) -> list[str]:
+    """Split `text` on `;` while keeping the delimiter so missing final `;` is visible."""
     chunks: list[str] = []
     start = 0
     for idx, ch in enumerate(text):
@@ -23,8 +26,10 @@ def split_inclusive_semicolon(text: str) -> list[str]:
 
 
 def recover(source: str) -> tuple[list[int], list[Diagnostic]]:
+    """Recover values from `emit <u32>;` statements, synchronizing at `;` on errors."""
     values: list[int] = []
     diagnostics: list[Diagnostic] = []
+    # Track UTF-8 byte offset (not code-point index) so offsets match Rust and multibyte text.
     offset = 0
     for chunk in split_inclusive_semicolon(source):
         chunk_bytes = len(chunk.encode("utf-8"))
@@ -38,10 +43,12 @@ def recover(source: str) -> tuple[list[int], list[Diagnostic]]:
             continue
         parts = stripped.split()
         message: str | None
+        # Check delimiter first so an unterminated statement reports missing `;`.
         if not chunk.endswith(";"):
             message = "expected a semicolon"
         elif len(parts) == 2 and parts[0] == "emit" and parts[1].isascii() and parts[1].isdigit():
             number = int(parts[1])
+            # Match Rust u32 bounds explicitly.
             if number <= 0xFFFF_FFFF:
                 values.append(number)
                 message = None

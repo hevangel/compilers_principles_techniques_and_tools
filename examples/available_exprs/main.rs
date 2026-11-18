@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Binary operators tracked by available expressions (`+` and `*` are commutative).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Op {
     Add,
@@ -9,6 +10,7 @@ enum Op {
     Mul,
 }
 
+/// Normalized expression key so equivalent commutative forms (e.g., `x + y` and `y + x`) match.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct ExprKey {
     op: Op,
@@ -17,6 +19,7 @@ struct ExprKey {
 }
 
 impl ExprKey {
+    /// Canonicalize operand order for commutative operators (`+`, `*`), preserving `-` order.
     fn canonical(op: Op, a: &str, b: &str) -> Self {
         match op {
             Op::Add | Op::Mul if b < a => Self {
@@ -58,15 +61,21 @@ struct BasicBlock {
     succs: Vec<usize>,
 }
 
+/// Data-flow solution mapping each block index to expressions available on entry and exit.
 struct AvailResult {
     in_avail: Vec<BTreeSet<ExprKey>>,
     out_avail: Vec<BTreeSet<ExprKey>>,
 }
 
-// Forward must-analysis initialized to Universe for all blocks except ENTRY.
+/// Forward must-analysis initialized to the universal set `U` for all blocks except ENTRY (`0`).
+///
+/// An expression is in `in_avail[B]` iff *every* path from ENTRY to `B` evaluates it without
+/// subsequently redefining either of its operands. Starting `out_avail[B != 0]` at `U` computes
+/// the greatest fixed point so loop back-edges do not falsely kill loop-invariant expressions.
 fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
     let n = blocks.len();
     let mut preds = vec![Vec::new(); n];
+    // `universe` is the lattice top element containing every binary expression in the CFG.
     let mut universe: BTreeSet<ExprKey> = BTreeSet::new();
     for (b, blk) in blocks.iter().enumerate() {
         for &s in &blk.succs {
@@ -79,6 +88,9 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
         }
     }
 
+    // Local block summaries:
+    // - `e_gen[b]`: expressions evaluated in `b` whose operands are NOT modified afterward in `b`.
+    // - `e_kill[b]`: expressions in `universe` whose operands (`lhs` or `rhs`) are assigned in `b`.
     let mut e_gen: Vec<BTreeSet<ExprKey>> = vec![BTreeSet::new(); n];
     let mut e_kill: Vec<BTreeSet<ExprKey>> = vec![BTreeSet::new(); n];
     for (b, blk) in blocks.iter().enumerate() {
@@ -93,7 +105,8 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
                             e_kill[b].insert(expr.clone());
                         }
                     }
-                    // If dst != lhs && dst != rhs, key remains generated.
+                    // If `dst` differs from both operands (`x = a + b`), the expression survives
+                    // until block exit; `x = x + 1` kills itself because `x` changed.
                     if dst != lhs && dst != rhs {
                         e_gen[b].insert(ExprKey::canonical(*op, lhs, rhs));
                     }
@@ -111,6 +124,8 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
         }
     }
 
+    // Initialize `in_avail[0]` to empty (nothing computed before entry) and non-entry `out_avail`
+    // to `universe` (optimistic top of the intersection lattice).
     let mut in_avail = vec![BTreeSet::new(); n];
     let mut out_avail: Vec<BTreeSet<ExprKey>> = (0..n)
         .map(|b| {
@@ -126,7 +141,7 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
         let mut changed = false;
         for b in 0..n {
             if b == 0 {
-                // ENTRY has no incoming paths except outer; keep in[0] empty.
+                // ENTRY has no incoming paths inside the CFG; keep `in_avail[0]` empty.
                 let mut new_out = e_gen[0].clone();
                 for e in &in_avail[0] {
                     if !e_kill[0].contains(e) {
@@ -139,6 +154,7 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
                 }
                 continue;
             }
+            // Must confluence: intersect `out_avail[p]` across all predecessors `p` of `b`.
             let new_in = if preds[b].is_empty() {
                 BTreeSet::new()
             } else {
@@ -150,6 +166,7 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
                 }
                 acc
             };
+            // Transfer: `OUT[B] = e_gen[B] U (IN[B] \ e_kill[B])`.
             let mut new_out = e_gen[b].clone();
             for e in &new_in {
                 if !e_kill[b].contains(e) {
@@ -172,11 +189,17 @@ fn available_expressions(blocks: &[BasicBlock]) -> AvailResult {
     }
 }
 
+/// Eliminate global common subexpressions using `available_expressions`.
+///
+/// Phase 1 discovers which expressions are actually encountered while already available
+/// (`all_avail_uses`). Phase 2 allocates one `_cse_k` temporary per such expression, saves
+/// non-redundant computations into `_cse_k`, and replaces redundant ones with `Copy(dst, _cse_k)`.
 fn global_cse(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
     let avail = available_expressions(blocks);
     let mut cse_temps: BTreeMap<ExprKey, String> = BTreeMap::new();
     let mut all_avail_uses: BTreeSet<ExprKey> = BTreeSet::new();
 
+    // Scan each block tracking statement-by-statement availability (`cur`).
     for (b, blk) in blocks.iter().enumerate() {
         let mut cur = avail.in_avail[b].clone();
         for stmt in &blk.stmts {
@@ -214,12 +237,15 @@ fn global_cse(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
                     let key = ExprKey::canonical(*op, lhs, rhs);
                     if let Some(tmp) = cse_temps.get(&key) {
                         if cur.contains(&key) {
+                            // Safe reuse: `key` is guaranteed available on every path to this point.
                             new_stmts.push(Stmt::Copy {
                                 dst: dst.clone(),
                                 src: tmp.clone(),
                             });
                             replaced += 1;
                         } else {
+                            // Materialize `_cse_k` right after the non-redundant computation so
+                            // downstream blocks can read from one shared temporary name.
                             new_stmts.push(stmt.clone());
                             new_stmts.push(Stmt::Copy {
                                 dst: tmp.clone(),
@@ -246,15 +272,18 @@ fn global_cse(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
     (out_blocks, replaced)
 }
 
+/// Active copy assignment `dst = src` valid along every path reaching a point.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct CopyPair {
     dst: String,
     src: String,
 }
 
+/// Forward must-analysis for Copy Propagation: substitutes `src` for `dst` while `dst = src` holds.
 fn copy_propagation(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
     let n = blocks.len();
     let mut preds = vec![Vec::new(); n];
+    // Collect the universe of non-trivial copy pairs `dst = src`.
     let mut all_copies: BTreeSet<CopyPair> = BTreeSet::new();
     for (b, blk) in blocks.iter().enumerate() {
         for &s in &blk.succs {
@@ -271,6 +300,7 @@ fn copy_propagation(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
             }
         }
     }
+    // Any assignment to variable `d` kills every copy pair mentioning `d` as either `dst` or `src`.
     let mut c_gen = vec![BTreeSet::new(); n];
     let mut c_kill = vec![BTreeSet::new(); n];
     for (b, blk) in blocks.iter().enumerate() {
@@ -300,6 +330,8 @@ fn copy_propagation(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
         }
     }
 
+    // Forward must-analysis: initialize non-entry blocks to `all_copies`, ENTRY to empty, and
+    // intersect across predecessors so a copy is substituted only if valid along *all* paths.
     let mut in_copies = vec![BTreeSet::new(); n];
     let mut out_copies: Vec<BTreeSet<CopyPair>> = (0..n)
         .map(|b| {
@@ -341,6 +373,7 @@ fn copy_propagation(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
         }
     }
 
+    // Substitute `name -> src` only when a single unambiguous copy `name = src` is active.
     let subst = |name: &str, active: &BTreeSet<CopyPair>| -> Option<String> {
         let matches: Vec<&str> = active
             .iter()
@@ -354,6 +387,7 @@ fn copy_propagation(blocks: &[BasicBlock]) -> (Vec<BasicBlock>, usize) {
         }
     };
 
+    // Walk statements in order, rewriting operand reads before killing/updating active copies.
     let mut out_blocks = blocks.to_vec();
     let mut propagated = 0usize;
     for (b, blk) in out_blocks.iter_mut().enumerate() {

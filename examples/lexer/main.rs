@@ -1,5 +1,6 @@
 //! Scan a source string into tokens with borrowed lexemes and byte offsets.
 
+/// Token category consumed by a parser to make grammatical decisions.
 #[derive(Debug, PartialEq, Eq)]
 enum Kind {
     Let,
@@ -10,6 +11,7 @@ enum Kind {
     Semicolon,
 }
 
+/// A scanned token carrying its category, borrowed source text, and starting byte offset.
 #[derive(Debug, PartialEq, Eq)]
 // The kind serves the parser. The lexeme and offset preserve source information.
 struct Token<'a> {
@@ -18,17 +20,24 @@ struct Token<'a> {
     start: usize,
 }
 
+/// Convert `source` into tokens using longest-match (maximal munch) rules.
+/// Returns `Err(byte_offset)` on the first unsupported byte.
 fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
     let mut end = 0;
-    // Each token starts at the current cursor and consumes the range start..end.
+    // Invariant: `end` is always at a UTF-8 character boundary (every accepted token
+    // consumes pure ASCII bytes, and non-ASCII bytes immediately return Err(start)).
     while end < bytes.len() {
         let start = end;
         end += 1;
         let kind = match bytes[start] {
+            // Skip ASCII whitespace without emitting a token, while still advancing `end`
+            // so subsequent tokens retain accurate byte offsets.
             b if b.is_ascii_whitespace() => continue,
             b if b.is_ascii_alphabetic() || b == b'_' => {
+                // Longest match: consume all contiguous identifier bytes before keyword lookup
+                // so words like `letter` are not split into `let` + `ter`.
                 while bytes
                     .get(end)
                     .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
@@ -43,21 +52,24 @@ fn scan(source: &str) -> Result<Vec<Token<'_>>, usize> {
                 }
             }
             b if b.is_ascii_digit() => {
+                // Note: leading zeros (e.g. `007`) stay intact in `lexeme`.
                 while bytes.get(end).is_some_and(u8::is_ascii_digit) {
                     end += 1;
                 }
                 Kind::Integer
             }
-            // Prefer the longer operator when the next byte completes it.
+            // One-byte lookahead: prefer the longer operator `==` over `=` when available.
             b'=' if bytes.get(end) == Some(&b'=') => {
                 end += 1;
                 Kind::EqualEqual
             }
             b'=' => Kind::Equal,
             b';' => Kind::Semicolon,
+            // Non-ASCII bytes (e.g. `λ`) or unknown punctuation fail with their start byte index.
             _ => return Err(start),
         };
-        // Borrow the matched slice. The scanner consumes ASCII bytes before slicing.
+        // Borrow the matched slice. The scanner consumes ASCII bytes before slicing,
+        // guaranteeing `&source[start..end]` lies on valid UTF-8 boundaries.
         tokens.push(Token {
             kind,
             lexeme: &source[start..end],

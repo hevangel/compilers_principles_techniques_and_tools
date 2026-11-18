@@ -41,13 +41,18 @@ class SelectedTile(Enum):
 
 @dataclass(frozen=True)
 class DpSolution:
+    """Optimal tiling decision at a node for a fixed register budget `k`."""
+
     cost: int
+    # True if left child runs first with `k` regs (leaving `k - 1` for right); False swaps order.
     left_first: bool
     tile: SelectedTile
 
 
 @dataclass
 class DpNode:
+    """DP tree node holding `best[1..=max_regs]` cost vector for this subtree."""
+
     expr: Expr
     left: "DpNode | None"
     right: "DpNode | None"
@@ -68,6 +73,8 @@ class LdImm:
 
 @dataclass(frozen=True)
 class LdIndexed:
+    """Fused addressing instruction: `dst = regs[base] + scale * regs[idx]`."""
+
     dst: int
     base: int
     scale: int
@@ -130,6 +137,7 @@ INF = 1_000_000
 
 
 def solve_dp(expr: Expr, max_regs: int) -> DpNode:
+    """Bottom-up DP tree tiling (Dragon Book §8.11) computing `best[1..=max_regs]` per node."""
     left = solve_dp(expr.left, max_regs) if isinstance(expr, (AddExpr, MulExpr)) else None
     right = solve_dp(expr.right, max_regs) if isinstance(expr, (AddExpr, MulExpr)) else None
     best: list[DpSolution | None] = [None] * (max_regs + 1)
@@ -146,10 +154,12 @@ def solve_dp(expr: Expr, max_regs: int) -> DpNode:
             update(k, DpSolution(1, True, SelectedTile.LD_IMM))
         elif isinstance(expr, AddExpr):
             assert left is not None and right is not None
+            # Tile 1: fold constant right operand into AddImm (cost 1, no extra register needed).
             if isinstance(expr.right, Imm):
                 ls = left.best[k]
                 if ls is not None:
                     update(k, DpSolution(ls.cost + 1, True, SelectedTile.ADD_IMM))
+            # Tile 2: fuse `base + idx * (2|4|8)` into one LdIndexed instruction (cost 1).
             if (
                 isinstance(expr.right, MulExpr)
                 and isinstance(expr.right.right, Imm)
@@ -176,6 +186,7 @@ def solve_dp(expr: Expr, max_regs: int) -> DpNode:
                             SelectedTile.LEA_INDEXED,
                         ),
                     )
+            # Tile 3: generic AddReg evaluating the first child in `k` regs and the second in `k - 1`.
             if k >= 2:
                 if left.best[k] is not None and right.best[k - 1] is not None:
                     update(
@@ -195,6 +206,7 @@ def solve_dp(expr: Expr, max_regs: int) -> DpNode:
                             SelectedTile.ADD_REG,
                         ),
                     )
+            # Tile 4: spill fallback when `k == 1` (store + reload cost +5).
             if left.best[k] is not None and right.best[k] is not None:
                 update(
                     k,
@@ -230,6 +242,7 @@ def solve_dp(expr: Expr, max_regs: int) -> DpNode:
 
 
 def emit_dp(node: DpNode, base_reg: int, regs_avail: int, out: list[TileCode]) -> None:
+    """Emit target instructions top-down following `node.best[regs_avail]`."""
     sol = node.best[regs_avail]
     assert sol is not None
     if sol.tile == SelectedTile.LD_MEM:
@@ -247,6 +260,7 @@ def emit_dp(node: DpNode, base_reg: int, regs_avail: int, out: list[TileCode]) -
         assert isinstance(node.right.right, DpNode) and isinstance(node.right.right.expr, Imm)
         idx_node = node.right.left
         scale = node.right.right.expr.val
+        # Place `base` in `base_reg` and `idx` in `base_reg + 1` while honoring DP `left_first` order.
         if sol.left_first:
             emit_dp(node.left, base_reg, regs_avail, out)
             emit_dp(idx_node, base_reg + 1, regs_avail - 1, out)
@@ -269,6 +283,7 @@ def emit_dp(node: DpNode, base_reg: int, regs_avail: int, out: list[TileCode]) -
 
 
 def naive_postorder_emit(expr: Expr, reg: int, out: list[TileCode]) -> int:
+    """Baseline un-tiled 1-to-1 AST expansion for cost comparison."""
     if isinstance(expr, Mem):
         out.append(Ld(reg, expr.name))
         return 2
@@ -285,6 +300,7 @@ def naive_postorder_emit(expr: Expr, reg: int, out: list[TileCode]) -> int:
 
 
 def peephole_optimize(code: list[TileCode]) -> list[TileCode]:
+    """Fixed-point sliding-window peephole pass (Dragon Book §8.7)."""
     cur = list(code)
     while True:
         nxt: list[TileCode] = []
@@ -293,20 +309,24 @@ def peephole_optimize(code: list[TileCode]) -> list[TileCode]:
         while i < len(cur):
             if i + 1 < len(cur):
                 a, b = cur[i], cur[i + 1]
+                # Pattern 1: `St r, x; Ld r, x` -> `St r, x` (safe with no intervening Label).
                 if isinstance(a, St) and isinstance(b, Ld) and a.src == b.dst and a.mem == b.mem:
                     nxt.append(a)
                     i += 2
                     changed = True
                     continue
+                # Pattern 2: `Jmp L; Label L` -> `Label L` (jump to immediately following instruction).
                 if isinstance(a, Jmp) and isinstance(b, Label) and a.target == b.name:
                     i += 1
                     changed = True
                     continue
             ins = cur[i]
+            # Pattern 3: `AddImm r, r, 0` -> delete algebraic no-op.
             if isinstance(ins, AddImm) and ins.dst == ins.lhs and ins.imm == 0:
                 i += 1
                 changed = True
                 continue
+            # Pattern 4: `MulImm d, s, 2` -> `ShlImm d, s, 1` (strength reduction).
             if isinstance(ins, MulImm) and ins.imm == 2:
                 nxt.append(ShlImm(ins.dst, ins.lhs, 1))
                 i += 1

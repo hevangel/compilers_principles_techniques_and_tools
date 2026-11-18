@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// Table-driven deterministic finite automaton with dense rows `trans[state][col]`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Dfa {
     start: usize,
@@ -23,6 +24,10 @@ impl Dfa {
     }
 }
 
+/// Strip states not reachable from `dfa.start` via BFS and renumber remaining states
+/// contiguously `0..k-1` with `start == 0`.
+/// Unreachable states must be removed before minimization so dead disconnected components
+/// do not survive as spurious extra blocks in the final partition.
 fn prune_unreachable(dfa: &Dfa) -> Dfa {
     let mut visited = BTreeSet::from([dfa.start]);
     let mut queue = VecDeque::from([dfa.start]);
@@ -53,6 +58,9 @@ fn prune_unreachable(dfa: &Dfa) -> Dfa {
     }
 }
 
+/// Minimize `dfa` via Myhill-Nerode partition refinement.
+/// Returns `(minimal_dfa, final_equivalence_classes)` where state IDs in the classes
+/// refer to the reachable-pruned numbering.
 fn minimize(dfa: &Dfa) -> (Dfa, Vec<BTreeSet<usize>>) {
     let reachable = prune_unreachable(dfa);
     let num_states = reachable.trans.len();
@@ -60,12 +68,15 @@ fn minimize(dfa: &Dfa) -> (Dfa, Vec<BTreeSet<usize>>) {
     let non_accepting: BTreeSet<usize> =
         (0..num_states).filter(|s| !accepting.contains(s)).collect();
 
-    // Initial partition separates accepting from non-accepting states, omitting empty blocks.
+    // Initial partition separates 0-distinguishable states (accepting vs. non-accepting).
+    // Empty blocks are omitted so all-accepting or all-rejecting DFAs collapse to 1 state.
     let mut partition: Vec<BTreeSet<usize>> = [accepting, non_accepting]
         .into_iter()
         .filter(|block| !block.is_empty())
         .collect();
 
+    // Loop invariant: two states in different blocks are provably distinguishable by some
+    // suffix. Refinement stops when every block maps all its members to the same target blocks.
     loop {
         let mut state_group = vec![0usize; num_states];
         for (gid, group) in partition.iter().enumerate() {
@@ -76,6 +87,8 @@ fn minimize(dfa: &Dfa) -> (Dfa, Vec<BTreeSet<usize>>) {
 
         let mut next_partition: Vec<BTreeSet<usize>> = Vec::new();
         for group in &partition {
+            // Key each state by the tuple of destination group IDs across the whole alphabet.
+            // States with identical signatures behave identically for one more step.
             let mut subgroups: BTreeMap<Vec<usize>, BTreeSet<usize>> = BTreeMap::new();
             for &state in group {
                 let signature: Vec<usize> = (0..reachable.alphabet.len())
@@ -107,6 +120,8 @@ fn minimize(dfa: &Dfa) -> (Dfa, Vec<BTreeSet<usize>>) {
         }
     }
 
+    // Build the quotient DFA: pick any representative per class (all members share
+    // the exact same target group signature and acceptance status).
     let trans = partition
         .iter()
         .map(|group| {

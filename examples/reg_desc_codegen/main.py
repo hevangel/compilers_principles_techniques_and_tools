@@ -12,6 +12,8 @@ class BinOp(Enum):
 
 @dataclass(frozen=True)
 class Quad:
+    """Three-address instruction: `dst = arg1 op arg2` or copy `dst = arg1`."""
+
     dst: str
     op: BinOp | None
     arg1: str
@@ -20,12 +22,16 @@ class Quad:
 
 @dataclass(frozen=True)
 class VarUseInfo:
+    """Liveness and next-use annotation for one variable after an instruction."""
+
     live: bool
     next_use: int | None
 
 
 @dataclass(frozen=True)
 class InstrLiveness:
+    """Snapshot of `(live, next_use)` after instruction `idx` for `dst`, `arg1`, `arg2`."""
+
     dst_info: VarUseInfo
     arg1_info: VarUseInfo
     arg2_info: VarUseInfo | None
@@ -67,6 +73,8 @@ RiscInstr = Ld | St | Mov | Add | Sub
 
 
 def compute_next_use(quads: list[Quad], live_on_exit: set[str]) -> list[InstrLiveness]:
+    """Dragon Book §8.4.2 backward pass computing `(live, next_use)` per instruction."""
+    # Variables live on exit start live with no in-block next-use index.
     table: dict[str, VarUseInfo] = {v: VarUseInfo(True, None) for v in live_on_exit}
     dead = VarUseInfo(False, None)
     out = [InstrLiveness(dead, dead, None)] * len(quads)
@@ -76,6 +84,7 @@ def compute_next_use(quads: list[Quad], live_on_exit: set[str]) -> list[InstrLiv
         arg1_info = table.get(q.arg1, dead)
         arg2_info = table.get(q.arg2, dead) if q.arg2 is not None else None
         out[idx] = InstrLiveness(dst_info, arg1_info, arg2_info)
+        # Kill `dst` first, then record reads of `arg1`/`arg2` at `idx` (handles `x = x + y`).
         table[q.dst] = dead
         table[q.arg1] = VarUseInfo(True, idx)
         if q.arg2 is not None:
@@ -84,8 +93,11 @@ def compute_next_use(quads: list[Quad], live_on_exit: set[str]) -> list[InstrLiv
 
 
 class CodegenState:
+    """Tracks `reg_desc` (vars in each register) and `addr_desc` (current locations of each var)."""
+
     def __init__(self, num_regs: int, all_vars: set[str]) -> None:
         self.reg_desc: list[set[str]] = [set() for _ in range(num_regs)]
+        # Initially every variable lives exclusively in memory.
         self.addr_desc: dict[str, set[tuple[str, str | int]]] = {
             v: {("mem", v)} for v in all_vars
         }
@@ -98,11 +110,13 @@ class CodegenState:
         return None
 
     def clear_reg(self, r: int) -> None:
+        """Remove `('reg', r)` from `addr_desc` of every variable currently in register `r`."""
         for v in list(self.reg_desc[r]):
             self.addr_desc.get(v, set()).discard(("reg", r))
         self.reg_desc[r].clear()
 
     def spill_reg(self, r: int, future_live: dict[str, int]) -> None:
+        """Store variables in `r` to memory only if still live and lacking any other up-to-date copy."""
         for v in sorted(self.reg_desc[r]):
             locs = self.addr_desc.get(v, set())
             has_other = any(loc != ("reg", r) for loc in locs)
@@ -112,9 +126,12 @@ class CodegenState:
         self.clear_reg(r)
 
     def pick_victim(self, exclude: int | None, future_live: dict[str, int]) -> int:
+        """Pick a free register (excluding `exclude`): empty -> backed-up/dead -> farthest next-use."""
+        # 1. Empty register requires no eviction or spill.
         for r, s in enumerate(self.reg_desc):
             if r != exclude and not s:
                 return r
+        # 2. Register whose vars are dead or already exist elsewhere (Mem or another Reg).
         for r, s in enumerate(self.reg_desc):
             if r == exclude:
                 continue
@@ -124,6 +141,7 @@ class CodegenState:
             ):
                 self.clear_reg(r)
                 return r
+        # 3. Spill the register whose earliest next-use is farthest in the future.
         candidates = [r for r in range(len(self.reg_desc)) if r != exclude]
         victim = max(
             candidates,
@@ -135,6 +153,7 @@ class CodegenState:
         return victim
 
     def ensure_in_reg(self, var: str, exclude: int | None, future_live: dict[str, int]) -> int:
+        """Ensure `var` is in a register, emitting `Ld` if not, without evicting `exclude`."""
         cur = self.var_in_reg(var)
         if cur is not None:
             return cur
@@ -147,12 +166,14 @@ class CodegenState:
     def get_reg_for_dst(
         self, q: Quad, info: InstrLiveness, rx: int, future_live: dict[str, int]
     ) -> int:
+        """Dragon Book §8.6.3: reuse `rx` if `arg1` is alone in `rx` and dies here (or `arg1 == dst`)."""
         if (q.arg1 == q.dst or not info.arg1_info.live) and self.reg_desc[rx] == {q.arg1}:
             return rx
         return self.pick_victim(None, future_live)
 
 
 def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> list[RiscInstr]:
+    """Generate RISC code for a basic block and flush dirty `live_on_exit` variables at block end."""
     liveness = compute_next_use(quads, live_on_exit)
     all_vars = set(live_on_exit)
     for q in quads:
@@ -163,11 +184,13 @@ def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> 
 
     state = CodegenState(num_regs, all_vars)
     for idx, q in enumerate(quads):
+        # Determine variables live *after* instruction `idx` and their earliest future use index.
         live_after: dict[str, int] = {v: 10**9 for v in live_on_exit}
         for later in range(idx + 1, len(quads)):
             for name in [quads[later].arg1] + ([quads[later].arg2] if quads[later].arg2 else []):
                 if not any(quads[mid].dst == name for mid in range(idx + 1, later)):
                     live_after.setdefault(name, later)
+        # Drop live_on_exit variables overwritten later before any read.
         for mid in range(idx + 1, len(quads)):
             d = quads[mid].dst
             if live_after.get(d, 10**9) >= mid and d in live_on_exit:
@@ -177,6 +200,7 @@ def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> 
                 if not used_before:
                     live_after.pop(d, None)
 
+        # Protect `arg1` and `arg2` from spilling while loading operands for `idx`.
         live_during = dict(live_after)
         live_during[q.arg1] = idx
         if q.arg2 is not None:
@@ -184,6 +208,7 @@ def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> 
 
         rx = state.ensure_in_reg(q.arg1, None, live_during)
         if q.op is not None and q.arg2 is not None:
+            # Exclude `rx` so loading `arg2` does not spill `arg1`.
             ry = state.ensure_in_reg(q.arg2, rx, live_during)
             rz = state.get_reg_for_dst(q, liveness[idx], rx, live_after)
             state.code.append(Add(rz, rx, ry) if q.op == BinOp.ADD else Sub(rz, rx, ry))
@@ -194,6 +219,7 @@ def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> 
                     s.discard(q.dst)
             state.addr_desc[q.dst] = {("reg", rz)}
         else:
+            # Copy `dst = arg1`: if `rz == rx` and `arg1` stays live, alias both in `rz` with zero `Mov`.
             rz = state.get_reg_for_dst(q, liveness[idx], rx, live_after)
             if rz != rx:
                 state.code.append(Mov(rz, rx))
@@ -208,6 +234,7 @@ def generate_block(quads: list[Quad], num_regs: int, live_on_exit: set[str]) -> 
                     state.reg_desc[rz].add(q.dst)
             state.addr_desc[q.dst] = {("reg", rz)}
 
+    # Block-exit flush: store only `live_on_exit` variables whose memory copy is stale.
     for v in sorted(live_on_exit):
         locs = state.addr_desc[v]
         if ("mem", v) not in locs:

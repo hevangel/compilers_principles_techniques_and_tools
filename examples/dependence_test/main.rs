@@ -13,14 +13,15 @@ fn gcd(mut a: i64, mut b: i64) -> i64 {
     a
 }
 
+/// One dimension of an affine array subscript: `offset + sum_k coeffs[k] * i_k`.
 #[derive(Clone, Debug)]
 struct AffineSubscript {
     offset: i64,
     coeffs: Vec<i64>,
 }
 
-// Each constraint is `sum coeffs[j] * vars[j] <= rhs`.
-// Variables are `[i_0, ..., i_{m-1}, i'_0, ..., i'_{m-1}]`.
+/// Linear half-space constraint `sum_j coeffs[j] * vars[j] <= rhs` over the
+/// concatenated iteration pair `vars = [i_0, ..., i_{m-1}, i'_0, ..., i'_{m-1}]`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct LinearIneq {
     coeffs: Vec<i64>,
@@ -28,6 +29,9 @@ struct LinearIneq {
 }
 
 impl LinearIneq {
+    /// Divide all coefficients and `rhs` by their positive GCD.
+    /// Dividing by a positive integer preserves the sign and solution set while
+    /// preventing coefficient blow-up during repeated Fourier-Motzkin projections.
     fn normalize(mut self) -> Self {
         let mut g = self.rhs.abs();
         for &c in &self.coeffs {
@@ -47,6 +51,8 @@ impl LinearIneq {
     }
 }
 
+/// Result of the layered dependence cascade: either a proof of independence
+/// (naming the first test that ruled out collisions) or `Dependent` with distance vectors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DependenceOutcome {
     IndependentByGcd,
@@ -55,6 +61,8 @@ enum DependenceOutcome {
     Dependent,
 }
 
+/// Query asking whether write `write_sub(i)` and read `read_sub(i')` can ever touch the same
+/// array element inside the given loop nest.
 #[derive(Clone, Debug)]
 struct LoopNestQuery {
     dims: usize,
@@ -66,6 +74,10 @@ struct LoopNestQuery {
     read_sub: Vec<AffineSubscript>,
 }
 
+/// GCD (Diophantine) test:
+/// By Bezout's identity, `sum_k (w_k i_k - r_k i'_k) = r_0 - w_0` has an integer solution
+/// (over unbounded integers) iff `gcd(w_0..w_{m-1}, r_0..r_{m-1})` divides `r_0 - w_0`.
+/// Returns `true` if a dependence is still possible, `false` if proven independent.
 fn gcd_test(write_sub: &[AffineSubscript], read_sub: &[AffineSubscript]) -> bool {
     for (w, r) in write_sub.iter().zip(read_sub) {
         let mut g = 0i64;
@@ -84,7 +96,10 @@ fn gcd_test(write_sub: &[AffineSubscript], read_sub: &[AffineSubscript]) -> bool
     true
 }
 
-// Banerjee interval test over rectangular loop bounds `L_k <= i_k, i'_k <= U_k`.
+/// Banerjee interval test over rectangular loop bounds `L_k <= i_k, i'_k <= U_k`.
+/// Computes the exact minimum `lo` and maximum `hi` of `sum_k (w_k * i_k - r_k * i'_k)`
+/// over the bounding box `[L, U]^2`. If `target = r_0 - w_0` falls outside `[lo, hi]`,
+/// no real (hence no integer) solution exists inside the loop bounds.
 fn banerjee_test(query: &LoopNestQuery) -> bool {
     for (w, r) in query.write_sub.iter().zip(&query.read_sub) {
         // Test equation: sum_k (w_k * i_k - r_k * i'_k) = r.offset - w.offset.
@@ -94,7 +109,7 @@ fn banerjee_test(query: &LoopNestQuery) -> bool {
             let (lk, uk) = query.rect_bounds[k];
             let wk = w.coeffs[k];
             let rk = r.coeffs[k];
-            // Min/max of wk * i_k on [lk, uk].
+            // Positive coefficient minimizes at `lk`, maximizes at `uk`; negative swaps them.
             lo += if wk >= 0 { wk * lk } else { wk * uk };
             hi += if wk >= 0 { wk * uk } else { wk * lk };
             // Min/max of (-rk) * i'_k on [lk, uk].
@@ -118,6 +133,14 @@ fn banerjee_test(query: &LoopNestQuery) -> bool {
     true
 }
 
+/// Fourier-Motzkin elimination over `Ax <= b`:
+/// To project out variable `var`, partition constraints by the sign of `coeffs[var]`:
+/// - `pos`: `cp * var + rest_p <= p.rhs`  (so `var <= (p.rhs - rest_p) / cp`)
+/// - `neg`: `-cn * var + rest_n <= n.rhs` (so `(rest_n - n.rhs) / cn <= var`)
+///
+/// Pairing every `(p, n)` via `cn * p + cp * n` eliminates `var` exactly over the reals.
+/// If any eliminated row collapses to `0 <= negative`, the original system is infeasible.
+/// Note: FM decides *real* feasibility; `enumerate_dependence_vectors` confirms integer points.
 fn fourier_motzkin_feasible(num_vars: usize, mut system: Vec<LinearIneq>) -> bool {
     for var in 0..num_vars {
         let mut pos = Vec::new();
@@ -168,6 +191,8 @@ fn fourier_motzkin_feasible(num_vars: usize, mut system: Vec<LinearIneq>) -> boo
     true
 }
 
+/// Encode subscript equalities `write_sub(i) == read_sub(i')` as pairs of `<=` and `>=`
+/// inequalities and combine them with the loop-nest bounds.
 fn build_fm_system(query: &LoopNestQuery) -> Vec<LinearIneq> {
     let nvars = query.dims * 2;
     let mut sys = query.bounds.clone();
@@ -200,6 +225,7 @@ fn build_fm_system(query: &LoopNestQuery) -> Vec<LinearIneq> {
     sys
 }
 
+/// Run the layered dependence pipeline: GCD -> Banerjee -> Fourier-Motzkin -> integer witness search.
 fn analyze_dependence(query: &LoopNestQuery) -> (DependenceOutcome, Vec<Vec<i64>>) {
     if !gcd_test(&query.write_sub, &query.read_sub) {
         return (DependenceOutcome::IndependentByGcd, Vec::new());

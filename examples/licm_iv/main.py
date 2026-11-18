@@ -76,6 +76,7 @@ def succs(t: Term) -> list[int]:
 
 
 def compute_doms(blocks: list[BasicBlock]) -> list[set[int]]:
+    """Forward must-analysis computing `dom[b]` (blocks dominating `b` from entry `0`)."""
     n = len(blocks)
     preds: list[list[int]] = [[] for _ in range(n)]
     for b, blk in enumerate(blocks):
@@ -98,6 +99,7 @@ def compute_doms(blocks: list[BasicBlock]) -> list[set[int]]:
 
 
 def natural_loop(blocks: list[BasicBlock], header: int, latch: int) -> set[int]:
+    """Collect the natural loop for back edge `latch -> header`."""
     preds: list[list[int]] = [[] for _ in range(len(blocks))]
     for b, blk in enumerate(blocks):
         for s in succs(blk.term):
@@ -120,6 +122,7 @@ def stmt_uses(s: Stmt) -> list[str]:
 
 
 def compute_live_in(blocks: list[BasicBlock]) -> list[set[str]]:
+    """Backward may-analysis for `live_in[b]`, used to guard speculative hoisting across exits."""
     n = len(blocks)
     use_b: list[set[str]] = [set() for _ in range(n)]
     def_b: list[set[str]] = [set() for _ in range(n)]
@@ -150,14 +153,17 @@ def compute_live_in(blocks: list[BasicBlock]) -> list[set[str]]:
 def licm_hoist(
     blocks: list[BasicBlock], preheader: int, header: int, latch: int
 ) -> tuple[list[BasicBlock], list[str], list[str]]:
+    """Hoist loop-invariant statements to `preheader` when dominance or dead-after-loop safety holds."""
     dom = compute_doms(blocks)
     loop_nodes = natural_loop(blocks, header, latch)
     live_in = compute_live_in(blocks)
+    # Count definitions per variable inside the loop (unique-definition gate).
     def_count: dict[str, int] = {}
     for b in loop_nodes:
         for s in blocks[b].stmts:
             def_count[s.dst] = def_count.get(s.dst, 0) + 1
 
+    # Identify loop exit blocks and variables live on exit targets.
     exits: list[int] = []
     exit_targets: set[int] = set()
     for b in loop_nodes:
@@ -167,6 +173,7 @@ def licm_hoist(
                 exit_targets.add(s)
     live_after_loop = set().union(*(live_in[t] for t in exit_targets)) if exit_targets else set()
 
+    # Phase 1: Iteratively mark invariant statements whose operands are external or invariant.
     invariant: set[tuple[int, int]] = set()
     inv_vars: set[str] = set()
     while True:
@@ -182,6 +189,7 @@ def licm_hoist(
         if not changed:
             break
 
+    # Phase 2: Safety gate — hoist iff `b` dominates all loop exits OR `s.dst` is dead after loop.
     out = [BasicBlock(list(blk.stmts), blk.term) for blk in blocks]
     hoisted: list[str] = []
     skipped: list[str] = []
@@ -206,7 +214,9 @@ def licm_hoist(
 def strength_reduce_iv(
     blocks: list[BasicBlock], preheader: int, header: int, latch: int
 ) -> tuple[list[BasicBlock], list[tuple[str, str, int]], bool]:
+    """Strength-reduce derived IVs `t = i * scale` to incremental additions and prune dead `i`."""
     loop_nodes = natural_loop(blocks, header, latch)
+    # Locate basic IVs `i = i + step`.
     basic_ivs: dict[str, int] = {}
     for b in loop_nodes:
         for s in blocks[b].stmts:
@@ -219,6 +229,7 @@ def strength_reduce_iv(
             ):
                 basic_ivs[s.dst] = s.rhs.val
 
+    # Locate derived IVs `t = i * scale`.
     derived: list[tuple[str, str, int]] = []
     for b in sorted(loop_nodes):
         for s in blocks[b].stmts:
@@ -235,6 +246,8 @@ def strength_reduce_iv(
     if not derived:
         return out, derived, False
 
+    # Initialize `t_sr = i * scale` in preheader, replace `t = i * scale` with `t = t_sr`,
+    # and increment `t_sr += scale * step` alongside `i = i + step`.
     for var, base_iv, scale in derived:
         step = basic_ivs[base_iv]
         sr_var = f"{var}_sr"
@@ -265,6 +278,7 @@ def strength_reduce_iv(
                     new_stmts.append(s)
             out[b].stmts = new_stmts
 
+    # Rewrite exit test `i < limit` -> `t_sr < limit * scale`.
     var0, base_iv0, scale0 = derived[0]
     sr_var0 = f"{var0}_sr"
     exit_rewritten = False
@@ -281,6 +295,7 @@ def strength_reduce_iv(
             out[header].stmts[idx] = AssignStmt(s.dst, Op.LT, VarOp(sr_var0), VarOp(lim_scaled))
             exit_rewritten = True
 
+    # Delete `i = i + step` only if `i` has no remaining loop uses and is dead on all exit paths.
     if exit_rewritten:
         live_in = compute_live_in(out)
         used_in_loop = any(

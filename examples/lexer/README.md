@@ -11,20 +11,46 @@ python3 -m unittest examples/lexer/main.py
 
 ## What the example teaches
 
-`scan` reads a complete identifier before checking the keyword table. That keeps `letter` as one name even though it begins with `let`. For operators, the scanner looks ahead to distinguish `=` from `==`.
+### Why we need this / What problem this solves
 
-A scanner, or **lexer**, reads characters and returns **tokens**. The token kind is a category such as `Name`. The **lexeme** is the particular source text in that category, such as `letter`. The byte offset tells the caller where the token begins. A parser can use the kind for grammar decisions and keep the text and offset for later use.
+A parser wants structured units (`Let`, `Name("letter")`, `EqualEqual`, `Integer("12")`), not raw characters. A naive character-by-character or whitespace-splitting approach fails in three immediate ways:
+
+1. **Prefix collisions (keywords vs. identifiers):** `letter` starts with `let`. If a scanner emitted `Let` as soon as it saw the prefix `let`, `let letter = 12;` would wrongly become `Let, Let, Name("ter")`.
+2. **Multi-character operators without spaces:** In `letter==12;` or `x===y`, there is no whitespace separating identifiers, `==`, and numbers. Splitting on spaces misses them; stopping after the first `=` turns `==` into two `Equal` tokens instead of one `EqualEqual`.
+3. **Diagnostic locations:** Skipping whitespace cannot erase byte positions, or syntax errors later in compilation will point at the wrong column/byte (`a = λ` fails at byte 4, not character/token index 2).
+
+The **longest-match (maximal munch)** rule solves (1) and (2): keep extending a token as long as the next byte can still continue a valid lexeme, and only check reserved keywords *after* the entire identifier is read. Keeping `start` as a byte offset into the original source solves (3).
 
 ### Follow the scanner's cursor
 
-1. `scan` records the current byte index in `start` and advances `end` past the first byte. The first byte tells it which token rules could apply.
-2. For a name or integer, it advances `end` as long as the next byte can extend that token. This is the **longest-match** rule. After scanning an entire name, it checks whether the spelling is the reserved word `let`.
-3. For `=`, it inspects one additional byte. If that byte is another equals sign, it consumes both bytes as one `EqualEqual` token. Otherwise it consumes only the first.
-4. It stores the source slice `start..end` in the token and resumes at `end`. Whitespace advances the cursor without producing a token.
+1. `scan` records the current byte index in `start` and advances `end` past the first byte. That first byte determines which token rule applies.
+2. For a name or integer, it advances `end` while the next byte can extend that token (maximal munch). Only after scanning the whole word does it check whether the lexeme is the reserved keyword `let`.
+3. For `=`, it peeks one byte ahead. If the next byte is `=`, it consumes both as `EqualEqual`; otherwise it consumes one byte as `Equal`.
+4. It stores the slice `start..end` (the **lexeme**) alongside `kind` and `start`, then resumes at `end`. Whitespace advances the cursor without emitting a token, preserving accurate byte offsets.
 
-### Read the output
+### Trace `let letter = 12; letter == 12;`
 
-For `let letter = 12; letter == 12;`, the first tokens begin at offsets 0, 4, 11, 13, and 15. The first `let` is a keyword. At offset 4, the scanner consumes all six letters of `letter` and classifies it as a name. The later `==` starts at offset 24 and occupies two bytes. Token offsets still include the whitespace in the source.
+| `start` | `end` | Lexeme | `Kind` | Why this choice? |
+| --- | --- | --- | --- | --- |
+| `0` | `3` | `"let"` | `Let` | Scanned all ASCII letters (`let`), then matched keyword `"let"` |
+| `3` | `4` | `" "` | *(skipped)* | Whitespace advances cursor only |
+| `4` | `10` | `"letter"` | `Name` | Maximal munch reads all 6 letters; `"letter" != "let"` |
+| `11` | `12` | `"="` | `Equal` | Next byte is `' '`, not `'='` |
+| `13` | `15` | `"12"` | `Integer` | Reads consecutive ASCII digits |
+| `15` | `16` | `";"` | `Semicolon` | Single-byte punctuation |
+| `17` | `23` | `"letter"` | `Name` | Byte offset continues counting skipped spaces |
+| `24` | `26` | `"=="` | `EqualEqual` | Lookahead sees second `'='`, consumes 2 bytes |
+| `27` | `29` | `"12"` | `Integer` | Consecutive digits |
+| `29` | `30` | `";"` | `Semicolon` | Single-byte punctuation |
+
+### How to read the code
+
+| Component | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| Token categories | `enum Kind` | `class Kind(Enum)` | Grammatical tag used by the parser (`Let`, `Name`, `Integer`, `Equal`, `EqualEqual`, `Semicolon`) |
+| Token record | `struct Token<'a>` | `class Token` | Pairs `kind`, `lexeme` text slice, and byte offset `start` |
+| Error reporting | `Result<..., usize>` | `class LexError` | Reports the exact UTF-8 byte offset of the first invalid byte |
+| Scanner loop | `fn scan` | `def scan` | Implements maximal-munch scanning over `source` bytes |
 
 ## What to look for
 

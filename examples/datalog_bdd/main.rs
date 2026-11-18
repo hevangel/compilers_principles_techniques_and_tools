@@ -2,18 +2,21 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Logic-programming term inside a Datalog atom: either a join variable or a ground constant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Term {
     Var(usize),
     Const(u32),
 }
 
+/// Predicate application such as `Pts(X, H)` or `HeapPts(H1, F, H2)`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Atom {
     pred: &'static str,
     terms: Vec<Term>,
 }
 
+/// Positive Horn clause `head :- body[0], body[1], ...`.
 #[derive(Clone, Debug)]
 struct Rule {
     head: Atom,
@@ -29,6 +32,8 @@ struct EvalStats {
     derivations: usize,
 }
 
+/// Unify `atom` against a concrete database `tuple`, extending `env` with new variable bindings.
+/// Rolls back any bindings added during this call if unification fails partway through.
 fn match_atom(atom: &Atom, tuple: &[u32], env: &mut BTreeMap<usize, u32>) -> bool {
     if atom.terms.len() != tuple.len() {
         return false;
@@ -79,6 +84,9 @@ struct JoinCtx<'a> {
     deltas: &'a Db,
 }
 
+/// Evaluate a conjunctive rule body left-to-right via backtracking search.
+/// When `delta_slot = Some(s)`, body atom `s` reads only newly derived tuples from `deltas`
+/// while all other body atoms read the full accumulated database `db`.
 fn join_rule_slot(
     rule: &Rule,
     delta_slot: Option<usize>,
@@ -126,6 +134,8 @@ fn join_rule_slot(
     dfs(&ctx, 0, &mut env, out_tuples, derivations);
 }
 
+/// Naive bottom-up Datalog evaluation: re-joins every rule against the full database each round
+/// until no new tuples are inserted.
 fn evaluate_naive(edb: &Db, rules: &[Rule]) -> (Db, EvalStats) {
     let mut db = edb.clone();
     for r in rules {
@@ -163,6 +173,10 @@ fn evaluate_naive(edb: &Db, rules: &[Rule]) -> (Db, EvalStats) {
     }
 }
 
+/// Semi-naive bottom-up Datalog evaluation:
+/// Soundness invariant: any tuple newly derived in round `t` must rely on at least one IDB fact
+/// that was newly added in round `t - 1`. Replacing one recursive body atom `slot` at a time with
+/// `deltas[pred]` (while keeping other atoms on `db`) avoids re-deriving old `db x db` joins.
 fn evaluate_semi_naive(edb: &Db, rules: &[Rule]) -> (Db, EvalStats) {
     let mut db = edb.clone();
     let mut idb_preds = BTreeSet::new();
@@ -255,6 +269,12 @@ enum BddNode {
     Internal { var: usize, low: usize, high: usize },
 }
 
+/// Arena-backed Reduced Ordered BDD.
+/// Canonical invariants (Bryant):
+/// 1. Ordered: along any root-to-leaf path, variable indices strictly increase (`var < child.var`).
+/// 2. Reduced (no redundant tests): `low == high` collapses immediately to `low`.
+/// 3. Shared (`unique` table): each distinct `(var, low, high)` triple has a single node ID,
+///    so two boolean functions are equivalent iff their root node IDs are equal (`u == v`).
 #[derive(Clone, Debug)]
 struct Robdd {
     nodes: Vec<BddNode>,
@@ -271,6 +291,8 @@ impl Robdd {
         }
     }
 
+    /// Canonical node constructor enforcing the reduction rule (`low == high => low`)
+    /// and unique-table hash-consing.
     fn mk(&mut self, var: usize, low: usize, high: usize) -> usize {
         if low == high {
             return low;
@@ -327,6 +349,8 @@ impl Robdd {
         }
     }
 
+    /// Memoized Shannon-expansion `apply`: splits on `top = min(var(u), var(v))` so variable
+    /// ordering is preserved, and caches commutative `(op, min(u, v), max(u, v))` subproblems.
     fn apply(&mut self, op: BddOp, u: usize, v: usize) -> usize {
         if u <= 1 && v <= 1 {
             let bu = u == BDD_ONE;
@@ -362,6 +386,7 @@ impl Robdd {
         res
     }
 
+    /// Cofactor `u` by fixing `target_var = val` (`u[target_var := val]`).
     fn restrict(&mut self, u: usize, target_var: usize, val: bool) -> usize {
         match self.nodes[u] {
             BddNode::Zero | BddNode::One => u,
@@ -383,6 +408,7 @@ impl Robdd {
         }
     }
 
+    /// Existential projection: `exists v. f = f[v := 0] \/ f[v := 1]`.
     fn exists(&mut self, vars: &[usize], mut u: usize) -> usize {
         for &v in vars {
             let f0 = self.restrict(u, v, false);
@@ -392,6 +418,7 @@ impl Robdd {
         u
     }
 
+    /// Rename variables using `ite` so arbitrary order permutations stay canonical.
     fn substitute(&mut self, u: usize, mapping: &BTreeMap<usize, usize>) -> usize {
         match self.nodes[u] {
             BddNode::Zero | BddNode::One => u,

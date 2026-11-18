@@ -6,12 +6,16 @@ import unittest
 
 @dataclass(frozen=True)
 class Instr:
+    """Minimal instruction capturing variable write (`defn`) and reads (`uses`)."""
+
     defn: str | None
     uses: list[str]
 
 
 @dataclass(frozen=True)
 class CfgBlock:
+    """Basic block in the CFG annotated with `loop_depth` for `10^depth` spill-cost weighting."""
+
     loop_depth: int
     instrs: list[Instr]
     succs: list[int]
@@ -19,6 +23,8 @@ class CfgBlock:
 
 @dataclass
 class ColoringResult:
+    """Result of Kempe coloring: register map, spilled variables, total spill cost, interference."""
+
     colors: dict[str, int]
     spills: set[str]
     total_spill_cost: int
@@ -28,7 +34,9 @@ class ColoringResult:
 def build_interference_and_costs(
     blocks: list[CfgBlock],
 ) -> tuple[dict[str, set[str]], dict[str, int]]:
+    """Compute loop-weighted spill costs, global backward liveness, and interference edges."""
     n = len(blocks)
+    # `use_blk[b]`: vars read in block `b` before any local definition; `def_blk[b]`: vars written in `b`.
     use_blk: list[set[str]] = [set() for _ in range(n)]
     def_blk: list[set[str]] = [set() for _ in range(n)]
     all_vars: set[str] = set()
@@ -47,6 +55,7 @@ def build_interference_and_costs(
                 costs[ins.defn] = costs.get(ins.defn, 0) + weight
                 def_blk[b].add(ins.defn)
 
+    # Iterative backward liveness fixed point: live_in[b] = use_blk[b] | (live_out[b] - def_blk[b]).
     live_in: list[set[str]] = [set() for _ in range(n)]
     live_out: list[set[str]] = [set() for _ in range(n)]
     while True:
@@ -70,6 +79,7 @@ def build_interference_and_costs(
             interference[u].add(v)
             interference[v].add(u)
 
+    # Walk each block backward from `live_out[b]` to connect all simultaneously live variables.
     for b, blk in enumerate(blocks):
         live = set(live_out[b])
         exit_list = sorted(live)
@@ -77,6 +87,7 @@ def build_interference_and_costs(
             for v in exit_list[i + 1 :]:
                 add_edge(u, v)
         for ins in reversed(blk.instrs):
+            # Defined variable interferes with everything live immediately after `ins`.
             if ins.defn is not None:
                 for l in live:
                     add_edge(ins.defn, l)
@@ -93,9 +104,12 @@ def build_interference_and_costs(
 def kempe_color(
     interference: dict[str, set[str]], costs: dict[str, int], k: int
 ) -> ColoringResult:
+    """Kempe's optimistic Simplify/Select K-coloring heuristic."""
     active: dict[str, set[str]] = {u: set(vs) for u, vs in interference.items()}
     stack: list[str] = []
 
+    # Simplify phase: push degree < k nodes first (guaranteed colorable); when stuck at
+    # degree >= k, push the node with minimum `cost / degree` as an optimistic potential spill.
     while active:
         trivial = next((v for v in sorted(active) if len(active[v]) < k), None)
         if trivial is not None:
@@ -111,6 +125,7 @@ def kempe_color(
                 active[nbr].discard(chosen)
         stack.append(chosen)
 
+    # Select phase: pop nodes off the stack and assign the first color in `0..k` free among neighbors.
     colors: dict[str, int] = {}
     spills: set[str] = set()
     total_spill_cost = 0
@@ -122,6 +137,7 @@ def kempe_color(
         if avail is not None:
             colors[v] = avail
         else:
+            # No color left among already-colored neighbors -> actual spill.
             spills.add(v)
             total_spill_cost += costs.get(v, 1)
 
@@ -129,6 +145,7 @@ def kempe_color(
 
 
 def verify_coloring(res: ColoringResult) -> None:
+    """Verify no edge in `interference` connects two variables assigned the same register."""
     for u, nbrs in res.interference.items():
         if u in res.colors:
             for v in nbrs:

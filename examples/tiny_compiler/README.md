@@ -11,30 +11,50 @@ python3 -m unittest examples/tiny_compiler/main.py
 
 ## What the example teaches
 
-`lex` breaks the input into tokens. The recursive-descent parser groups multiplication inside addition and emits stack instructions after recognizing their operands. The symbol table maps declared names to numbered slots, and the interpreter executes the resulting bytecode.
+### Why we need this / What problem this solves
 
-A compiler translates a **source language** into a **target language**. Here the source is a tiny language with `let` and `emit`, and the target is bytecode for a virtual machine. The compiler and the virtual machine have separate jobs. The compiler decides which instructions are needed. The virtual machine runs those instructions on actual values.
+A naive approach to running source text—evaluating characters directly from left to right—breaks down immediately on two fundamental language features:
+
+1. **Operator precedence and grouping:** In `boxes * perbox + 3`, you cannot evaluate left-to-right blindly; if you did `4 * 6 + 3` in a naive text evaluator with `3 + 4 * 6`, you would wrongly compute `(3 + 4) * 6 = 42` instead of `3 + (4 * 6) = 27`.
+2. **Separation of compilation from execution:** Evaluating source text directly mixes syntax checking, variable name lookup, and arithmetic together. If a variable name is misspelled (`emit missing;`) or a parenthesis is unclosed (`emit (3;`), a compiler should reject the program *before* executing anything, and resolve names once into fast integer slot indices rather than re-looking up strings at runtime.
+
+This example solves both problems with a miniature end-to-end **compiler + stack virtual machine (VM)**. `lex` turns characters into typed tokens; a recursive-descent parser enforces grammar rules and operator precedence while emitting **postfix (stack-machine) bytecode** (syntax-directed translation); a compile-time symbol table maps variable names to numbered slots; and `execute` runs the bytecode on an operand stack.
 
 ### Follow one statement through the compiler
 
-1. **Scan the characters.** For `emit boxes * perbox + 3;`, `lex` produces keyword, name, operator, and literal tokens. The parser can reason about `Name("boxes")` as one item.
-2. **Recognize the structure.** `expression` handles addition, `term` handles multiplication, and `factor` handles literals, names, and parenthesized expressions. Because `expression` reads a whole term before emitting addition, multiplication binds more tightly. Parentheses let a factor contain a complete expression.
-3. **Resolve names and emit code.** The two preceding declarations assigned `boxes` and `perbox` to slots 0 and 1. The parser translates the statement to `Load(0), Load(1), Mul, Push(3), Add, Emit`. This is **syntax-directed translation** because recognizing a grammatical construct triggers its code emission.
+1. **Scan the characters.** For `emit boxes * perbox + 3;`, `lex` produces keyword, name, operator, and literal tokens. The parser can reason about `Name("boxes")` as one item rather than individual characters.
+2. **Recognize the structure.** `expression` handles addition (`+`), `term` handles multiplication (`*`), and `factor` handles literals, names, and parenthesized expressions. Because `expression` calls `term` for each `+` operand before emitting `Add`, multiplication automatically binds tighter than addition. Parentheses let a `factor` reset precedence by calling `expression` recursively.
+3. **Resolve names and emit code.** The two preceding declarations (`let boxes = 4; let perbox = 6;`) assigned `boxes` to slot `0` and `perbox` to slot `1`. The parser translates `emit boxes * perbox + 3;` to `Load(0), Load(1), Mul, Push(3), Add, Emit`. Notice that the operators appear *after* their operands (Reverse Polish / postfix order): recognizing a grammatical construct directly triggers its code emission (**syntax-directed translation**).
 
 ### Trace the operand stack
 
-The top of the stack is on the right. The slot array already contains 4 and 6 from the declarations.
+For the default program `let boxes = 4; let perbox = 6; emit boxes * perbox + 3;`, the first two statements store `4` in slot `0` and `6` in slot `1`. Here is the stack trace for the `emit` statement (top of the stack is on the right):
 
-| Instruction | Stack afterward | Effect |
-| --- | --- | --- |
-| `Load(0)` | `[4]` | Push the value of `boxes` |
-| `Load(1)` | `[4, 6]` | Push the value of `perbox` |
-| `Mul` | `[24]` | Pop two operands and push their product |
-| `Push(3)` | `[24, 3]` | Push an integer literal |
-| `Add` | `[27]` | Pop two operands and push their sum |
-| `Emit` | `[]` | Pop 27 and append it to the output |
+| PC | Instruction | Stack afterward | Slots `[0, 1]` | Effect |
+| --- | --- | --- | --- | --- |
+| `00` | `Push(4)` | `[4]` | `[0, 0]` | Push initializer for `boxes` |
+| `01` | `Store(0)` | `[]` | `[4, 0]` | Pop value into slot `0` |
+| `02` | `Push(6)` | `[6]` | `[4, 0]` | Push initializer for `perbox` |
+| `03` | `Store(1)` | `[]` | `[4, 6]` | Pop value into slot `1` |
+| `04` | `Load(0)` | `[4]` | `[4, 6]` | Push the value of `boxes` |
+| `05` | `Load(1)` | `[4, 6]` | `[4, 6]` | Push the value of `perbox` |
+| `06` | `Mul` | `[24]` | `[4, 6]` | Pop two operands (`6`, `4`) and push `4 * 6` |
+| `07` | `Push(3)` | `[24, 3]` | `[4, 6]` | Push integer literal `3` |
+| `08` | `Add` | `[27]` | `[4, 6]` | Pop two operands (`3`, `24`) and push `24 + 3` |
+| `09` | `Emit` | `[]` | `[4, 6]` | Pop `27` and append it to the output |
 
-A well-formed expression leaves exactly one value on the stack. Each statement consumes its expression's value, so the stack is empty between statements.
+Invariant: every well-formed expression leaves **net +1** value on the stack, and every statement consumes its expression's value, so the stack is empty between statements.
+
+### How to read the code
+
+| Component | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| Token representation | `enum Token<'a>` | `class Token` | Lexical categories (`Let`, `Emit`, `Name`, `Number`, punctuation) |
+| Scanner (Lexer) | `fn lex` | `def lex` | Converts raw UTF-8/ASCII bytes into `Token` sequence with overflow checks |
+| Bytecode & Program | `enum Inst`, `struct Program` | `class Inst`, `class Program` | Stack VM instructions (`Push`, `Load`, `Store`, `Add`, `Mul`, `Emit`) and slot count |
+| Parser & Codegen | `struct Compiler` (`statement`, `expression`, `term`, `factor`) | `class Compiler` | Single-pass recursive-descent parser, symbol table (`slots`), and postfix code emission |
+| Driver | `fn compile` | `def compile_source` | Orchestrates lexing and statement-by-statement compilation |
+| Stack VM | `fn execute` | `def execute` | Interprets `Program` bytecode using an operand stack and wrapping 64-bit integer math |
 
 ## What to look for
 

@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::process::ExitCode;
 
+/// Lexical unit produced by `lex` and consumed by `Compiler`.
+/// `Name` borrows directly from the source string to avoid extra allocations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Token<'a> {
     Let,
@@ -28,10 +30,12 @@ fn lex(source: &str) -> Result<Vec<Token<'_>>, String> {
         let token = match bytes[start] {
             byte if byte.is_ascii_whitespace() => continue,
             byte if byte.is_ascii_alphabetic() => {
+                // Longest-match: consume all trailing alphanumeric bytes before
+                // checking whether the whole lexeme is a reserved keyword.
                 while bytes.get(end).is_some_and(u8::is_ascii_alphanumeric) {
                     end += 1;
                 }
-                // Recognize a keyword only after scanning the whole word.
+                // Recognize a keyword only after scanning the whole word so `letter` is Name, not Let.
                 match &source[start..end] {
                     "let" => Token::Let,
                     "emit" => Token::Emit,
@@ -42,6 +46,7 @@ fn lex(source: &str) -> Result<Vec<Token<'_>>, String> {
                 while bytes.get(end).is_some_and(u8::is_ascii_digit) {
                     end += 1;
                 }
+                // Validate signed 64-bit range during lexing rather than failing silently.
                 let value = source[start..end]
                     .parse()
                     .map_err(|_| format!("integer literal at byte {start} is too large"))?;
@@ -60,6 +65,8 @@ fn lex(source: &str) -> Result<Vec<Token<'_>>, String> {
     Ok(tokens)
 }
 
+/// Target instruction set for the stack virtual machine.
+/// Operands are passed via an implicit LIFO value stack; variables live in indexed slots.
 #[derive(Debug)]
 enum Inst {
     Push(i64),
@@ -70,6 +77,7 @@ enum Inst {
     Emit,
 }
 
+/// Compiled bytecode plus the number of variable slots the VM must allocate.
 #[derive(Debug)]
 struct Program {
     slots: usize,
@@ -79,11 +87,13 @@ struct Program {
 // Name-to-slot bindings are compile-time data. Bytecode carries slot numbers.
 struct Compiler<'a> {
     tokens: std::iter::Peekable<std::vec::IntoIter<Token<'a>>>,
+    /// Maps each declared variable name to its unique runtime slot index (0, 1, ...).
     slots: BTreeMap<&'a str, usize>,
     code: Vec<Inst>,
 }
 
 impl Compiler<'_> {
+    /// Consume `token` only if it matches the next lookahead token.
     fn eat(&mut self, token: Token<'_>) -> bool {
         if self.tokens.peek() == Some(&token) {
             self.tokens.next();
@@ -93,6 +103,7 @@ impl Compiler<'_> {
         }
     }
 
+    /// Require `token` next or abort compilation with a syntax error.
     fn expect(&mut self, token: Token<'_>) -> Result<(), String> {
         if self.eat(token) {
             Ok(())
@@ -102,6 +113,7 @@ impl Compiler<'_> {
     }
 
     // A factor emits code that leaves exactly one value on the operand stack.
+    // Grammar: factor -> Number | Name | '(' expression ')'
     fn factor(&mut self, depth: usize) -> Result<(), String> {
         match self.tokens.next() {
             Some(Token::Number(value)) => self.code.push(Inst::Push(value)),
@@ -112,6 +124,7 @@ impl Compiler<'_> {
                     .ok_or_else(|| format!("unknown name {name}"))?;
                 self.code.push(Inst::Load(*slot));
             }
+            // Enforce a bounded recursion depth so deeply nested parentheses cannot overflow the call stack.
             Some(Token::Open) if depth < 64 => {
                 self.expression(depth + 1)?;
                 self.expect(Token::Close)?;
@@ -123,6 +136,8 @@ impl Compiler<'_> {
     }
 
     // Consume an entire chain of products before returning to the addition rule.
+    // Grammar: term -> factor ( '*' factor )*
+    // Invariant: net stack effect is +1.
     fn term(&mut self, depth: usize) -> Result<(), String> {
         self.factor(depth)?;
         while self.eat(Token::Star) {
@@ -133,6 +148,8 @@ impl Compiler<'_> {
     }
 
     // Emit each operation after both operands so the VM can pop them from its stack.
+    // Grammar: expression -> term ( '+' term )*
+    // Using a loop instead of left recursion preserves left-associativity without looping forever.
     fn expression(&mut self, depth: usize) -> Result<(), String> {
         self.term(depth)?;
         while self.eat(Token::Plus) {
@@ -142,6 +159,8 @@ impl Compiler<'_> {
         Ok(())
     }
 
+    // Grammar: statement -> 'let' Name '=' expression ';' | 'emit' expression ';'
+    // Invariant: net stack effect is 0 across every complete statement.
     fn statement(&mut self) -> Result<(), String> {
         match self.tokens.next() {
             Some(Token::Let) => {
@@ -153,7 +172,7 @@ impl Compiler<'_> {
                 }
                 self.expect(Token::Equal)?;
                 self.expression(0)?;
-                // Introduce the name after compiling its initializer, so it cannot read itself.
+                // Introduce the name after compiling its initializer, so `let a = a;` is rejected.
                 let slot = self.slots.len();
                 self.slots.insert(name, slot);
                 self.code.push(Inst::Store(slot));
@@ -168,6 +187,7 @@ impl Compiler<'_> {
     }
 }
 
+/// Single-pass compiler: lexes source, parses every statement until EOF, and returns bytecode.
 fn compile(source: &str) -> Result<Program, String> {
     let mut compiler = Compiler {
         tokens: lex(source)?.into_iter().peekable(),
@@ -195,6 +215,7 @@ fn execute(program: &Program) -> Vec<i64> {
             Inst::Store(slot) => slots[slot] = stack.pop().unwrap(),
             Inst::Add | Inst::Mul => {
                 // The right operand was pushed last, so it is popped first.
+                // Wrapping arithmetic matches two's-complement 64-bit hardware semantics.
                 let right = stack.pop().unwrap();
                 let left = stack.pop().unwrap();
                 let value = match inst {

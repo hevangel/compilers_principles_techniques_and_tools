@@ -2,13 +2,18 @@
 
 use std::collections::BTreeMap;
 
+/// Dispatch lowering strategy chosen from case count and key density.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SwitchStrategy {
+    /// Sequential `if key == val` tests; minimal code size for tiny switches.
     LinearIfElse,
+    /// $O(1)$ bounds-checked indirect table for dense key ranges.
     JumpTable,
+    /// $O(\log n)$ balanced binary comparisons for many sparse keys.
     BinarySearchTree,
 }
 
+/// Low-level instruction set emitted by switch and statement lowering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum LoweredInstr {
     IfEqJump {
@@ -19,6 +24,7 @@ enum LoweredInstr {
         val: i64,
         target: String,
     },
+    /// Indexed jump over `[min_val, min_val + table.len())`; out-of-range or gap keys hit `default_label`.
     JumpTable {
         min_val: i64,
         default_label: String,
@@ -32,19 +38,25 @@ enum LoweredInstr {
         limit: i64,
         target: String,
     },
+    /// Unresolved placeholder emitted when lowering `break`, replaced by `PatchedJump` on construct exit.
     BreakPlaceholder,
+    /// Unresolved placeholder emitted when lowering `continue`, replaced by `PatchedJump` on loop exit.
     ContinuePlaceholder,
+    /// Finalized jump produced by backpatching a break or continue placeholder.
     PatchedJump(String),
 }
 
+/// Picks a switch lowering strategy from arm count and key density (`arms.len() >= 1` for non-linear path).
 fn choose_strategy(arms: &[(i64, String)]) -> SwitchStrategy {
+    // Small switches dispatch quickly with linear compares without table overhead.
     if arms.len() <= 4 {
         return SwitchStrategy::LinearIfElse;
     }
     let min_v = arms.iter().map(|(v, _)| *v).min().unwrap();
     let max_v = arms.iter().map(|(v, _)| *v).max().unwrap();
+    // Use `u128` so extreme `i64` ranges cannot overflow during span calculation.
     let span = (max_v - min_v) as u128 + 1;
-    // Dense if count / span >= 0.5 (2 * count >= span).
+    // Dense if count / span >= 0.5 (written as integer multiplication `2 * count >= span`).
     if (arms.len() as u128) * 2 >= span {
         SwitchStrategy::JumpTable
     } else {
@@ -52,12 +64,14 @@ fn choose_strategy(arms: &[(i64, String)]) -> SwitchStrategy {
     }
 }
 
+/// Canonicalizes case arms (sorted, deduplicated by key) and emits dispatch instructions.
 fn lower_switch(
     arms: &[(i64, String)],
     default_label: &str,
 ) -> (SwitchStrategy, Vec<LoweredInstr>) {
     let mut sorted = arms.to_vec();
     sorted.sort_by_key(|(v, _)| *v);
+    // Keep the first label if duplicate case keys appear.
     sorted.dedup_by_key(|(v, _)| *v);
 
     let strategy = choose_strategy(&sorted);
@@ -76,6 +90,7 @@ fn lower_switch(
             let min_v = sorted.first().unwrap().0;
             let max_v = sorted.last().unwrap().0;
             let span = (max_v - min_v + 1) as usize;
+            // Pre-fill every slot (including gaps between case values) with `default_label`.
             let mut table = vec![default_label.to_string(); span];
             for (val, label) in &sorted {
                 table[(val - min_v) as usize] = label.clone();
@@ -87,6 +102,8 @@ fn lower_switch(
             });
         }
         SwitchStrategy::BinarySearchTree => {
+            // Recursively partition sorted arms at `mid`: branch left if `key < mid_val`,
+            // match `key == mid_val`, or fall through into the right-subtree checks.
             fn emit_bst(
                 slice: &[(i64, String)],
                 default_label: &str,
@@ -131,6 +148,7 @@ fn lower_switch(
     (strategy, instrs)
 }
 
+/// Simulates dispatch-only switch instructions on `key`, returning the matching case or default label.
 fn eval_switch_dispatch(instrs: &[LoweredInstr], key: i64) -> String {
     let labels: BTreeMap<&str, usize> = instrs
         .iter()
@@ -171,6 +189,8 @@ fn eval_switch_dispatch(instrs: &[LoweredInstr], key: i64) -> String {
                 default_label,
                 table,
             } => {
+                // Bounds check below `min_val` first so `(key - min_val)` never underflows `usize`,
+                // then let `table.get(off)` catch keys above `max_val`.
                 let target = if key < *min_val {
                     default_label
                 } else {
@@ -197,8 +217,10 @@ fn eval_switch_dispatch(instrs: &[LoweredInstr], key: i64) -> String {
     unreachable!("dispatch must jump to an arm or default")
 }
 
+/// Structured statement AST with nested loops, switches, `break`, and `continue`.
 #[derive(Clone, Debug)]
 enum StmtAst {
+    /// Emits `Emit(1)` to observe whether statements after a switch were reached or skipped.
     EmitCaseValue,
     Break,
     Continue,
@@ -212,6 +234,7 @@ enum StmtAst {
     },
 }
 
+/// Parallel backpatching stacks separating `break` scopes (switch + loop) from `continue` scopes (loop only).
 struct PatchContext {
     break_lists: Vec<Vec<usize>>,
     continue_lists: Vec<Vec<usize>>,
@@ -236,12 +259,14 @@ impl PatchContext {
     }
 }
 
+/// Replaces every placeholder index in `sites` with a `PatchedJump` to `target`.
 fn backpatch(instrs: &mut [LoweredInstr], sites: &[usize], target: &str) {
     for &idx in sites {
         instrs[idx] = LoweredInstr::PatchedJump(target.to_string());
     }
 }
 
+/// Recursively lowers statements, recording `break`/`continue` placeholder sites on the active stacks.
 fn lower_stmt_list(stmts: &[StmtAst], ctx: &mut PatchContext, out: &mut Vec<LoweredInstr>) {
     for stmt in stmts {
         match stmt {
@@ -275,7 +300,7 @@ fn lower_stmt_list(stmts: &[StmtAst], ctx: &mut PatchContext, out: &mut Vec<Lowe
                 let (_, mut disp) = lower_switch(&arms, &def_lbl);
                 out.append(&mut disp);
 
-                // Break exits the switch; continue targets the enclosing loop (unchanged stack).
+                // Break exits the switch (`switch_end`); continue targets the enclosing loop (unchanged stack).
                 ctx.break_lists.push(Vec::new());
                 for ((val, body), lbl) in cases.iter().zip(&case_labels) {
                     out.push(LoweredInstr::Label(lbl.clone()));
@@ -294,12 +319,14 @@ fn lower_stmt_list(stmts: &[StmtAst], ctx: &mut PatchContext, out: &mut Vec<Lowe
                 let loop_step = ctx.fresh_label("loop_step");
                 let loop_exit = ctx.fresh_label("loop_exit");
 
+                // Loops own both a break scope (`loop_exit`) and a continue scope (`loop_step`).
                 ctx.break_lists.push(Vec::new());
                 ctx.continue_lists.push(Vec::new());
                 ctx.loop_headers.push(loop_step.clone());
 
                 out.push(LoweredInstr::Label(loop_head.clone()));
                 lower_stmt_list(body, ctx, out);
+                // Place `loop_step` before `IncrVar` so `continue` advances the loop counter instead of looping forever.
                 out.push(LoweredInstr::Label(loop_step.clone()));
                 out.push(LoweredInstr::IncrVar);
                 out.push(LoweredInstr::IfVarLtJump {
@@ -318,6 +345,7 @@ fn lower_stmt_list(stmts: &[StmtAst], ctx: &mut PatchContext, out: &mut Vec<Lowe
     }
 }
 
+/// Lowers a complete program AST into flat, fully backpatched instructions.
 fn lower_program(stmts: &[StmtAst]) -> Vec<LoweredInstr> {
     let mut ctx = PatchContext::new();
     let mut out = Vec::new();
@@ -325,6 +353,7 @@ fn lower_program(stmts: &[StmtAst]) -> Vec<LoweredInstr> {
     out
 }
 
+/// Executes a fully lowered loop/switch program and returns `(final_var, emitted_trace)`.
 fn run_lowered_program(instrs: &[LoweredInstr]) -> (i64, Vec<i64>) {
     let labels: BTreeMap<&str, usize> = instrs
         .iter()

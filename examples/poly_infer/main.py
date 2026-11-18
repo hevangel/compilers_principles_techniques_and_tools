@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import unittest
 
 
+# Type terms: type variables, base primitives, pairs, functions, and tagged records.
 @dataclass(frozen=True)
 class TVar:
     id: int
@@ -55,12 +56,14 @@ class TRecord:
 Type = TVar | TInt | TBool | TPair | TFun | TRecord
 
 
+# Polymorphic type scheme `forall {quantified}. ty` (empty frozenset = monomorphic).
 @dataclass(frozen=True)
 class TypeScheme:
     quantified: frozenset[int]
     ty: Type
 
 
+# Untyped functional AST nodes.
 @dataclass(frozen=True)
 class VarExpr:
     name: str
@@ -132,6 +135,7 @@ class UnboundVarError(NameError):
 
 
 def apply_subst(ty: Type, subst: dict[int, Type]) -> Type:
+    """Transitively apply `subst` across `ty`."""
     if isinstance(ty, TVar):
         return apply_subst(subst[ty.id], subst) if ty.id in subst else ty
     if isinstance(ty, TPair):
@@ -147,6 +151,7 @@ def apply_subst(ty: Type, subst: dict[int, Type]) -> Type:
 
 
 def free_vars_type(ty: Type) -> set[int]:
+    """Collect all type variable IDs appearing inside `ty`."""
     if isinstance(ty, TVar):
         return {ty.id}
     if isinstance(ty, (TPair, TFun)):
@@ -161,6 +166,7 @@ def free_vars_type(ty: Type) -> set[int]:
 
 
 def free_vars_env(env: dict[str, TypeScheme]) -> set[int]:
+    """Collect unquantified (free) type variables across all schemes in `env`."""
     out: set[int] = set()
     for scheme in env.values():
         out |= free_vars_type(scheme.ty) - scheme.quantified
@@ -168,6 +174,7 @@ def free_vars_env(env: dict[str, TypeScheme]) -> set[int]:
 
 
 def apply_subst_env(env: dict[str, TypeScheme], subst: dict[int, Type]) -> dict[str, TypeScheme]:
+    """Apply `subst` to `env` while skipping each scheme's bound `quantified` variables."""
     res: dict[str, TypeScheme] = {}
     for k, scheme in env.items():
         filtered = {vid: t for vid, t in subst.items() if vid not in scheme.quantified}
@@ -176,10 +183,12 @@ def apply_subst_env(env: dict[str, TypeScheme], subst: dict[int, Type]) -> dict[
 
 
 def occurs(vid: int, ty: Type) -> bool:
+    """Occurs check: forbids cyclic types like `t0 = t0 -> t1`."""
     return vid in free_vars_type(ty)
 
 
 def unify(t1: Type, t2: Type, subst: dict[int, Type]) -> None:
+    """Unify `t1` and `t2` by extending `subst` in place."""
     a = apply_subst(t1, subst)
     b = apply_subst(t2, subst)
     if a == b:
@@ -213,6 +222,8 @@ def unify(t1: Type, t2: Type, subst: dict[int, Type]) -> None:
 
 
 class InferCtx:
+    """Algorithm W state holding the fresh-variable counter and unification substitution."""
+
     def __init__(self) -> None:
         self.next_id = 0
         self.subst: dict[int, Type] = {}
@@ -223,10 +234,12 @@ class InferCtx:
         return TVar(vid)
 
     def instantiate(self, scheme: TypeScheme) -> Type:
+        """Replace quantified variables with fresh TVars for an independent use site."""
         rename: dict[int, Type] = {q: self.fresh() for q in sorted(scheme.quantified)}
         return apply_subst(scheme.ty, rename)
 
     def infer(self, env: dict[str, TypeScheme], expr: Expr) -> Type:
+        """Infer the principal type of `expr` under `env`."""
         if isinstance(expr, VarExpr):
             if expr.name not in env:
                 raise UnboundVarError(expr.name)
@@ -240,6 +253,7 @@ class InferCtx:
             tb = self.infer(env, expr.second)
             return TPair(apply_subst(ta, self.subst), apply_subst(tb, self.subst))
         if isinstance(expr, LamExpr):
+            # Lambda parameters are monomorphic (empty quantified set).
             pty = self.fresh()
             inner = dict(env)
             inner[expr.param] = TypeScheme(frozenset(), pty)
@@ -247,6 +261,7 @@ class InferCtx:
             return TFun(apply_subst(pty, self.subst), apply_subst(bty, self.subst))
         if isinstance(expr, AppExpr):
             fty = self.infer(env, expr.fun)
+            # Refresh `env` with substitutions learned while typing `expr.fun`.
             aty = self.infer(apply_subst_env(env, self.subst), expr.arg)
             rty = self.fresh()
             unify(fty, TFun(aty, rty), self.subst)
@@ -255,6 +270,7 @@ class InferCtx:
             rty = self.infer(env, expr.rhs)
             env_after = apply_subst_env(env, self.subst)
             resolved = apply_subst(rty, self.subst)
+            # Generalize only variables not free in `env_after` (sound let-polymorphism).
             quant = frozenset(free_vars_type(resolved) - free_vars_env(env_after))
             inner = dict(env_after)
             inner[expr.name] = TypeScheme(quant, resolved)
@@ -271,6 +287,7 @@ def infer_type(expr: Expr) -> Type:
 
 
 def structural_eq(a: Type, b: Type) -> bool:
+    """Compare record types by field names and types, ignoring their nominal `tag`."""
     if isinstance(a, TRecord) and isinstance(b, TRecord):
         return len(a.fields) == len(b.fields) and all(
             n1 == n2 and structural_eq(t1, t2)
@@ -284,6 +301,7 @@ def structural_eq(a: Type, b: Type) -> bool:
 
 
 def nominal_eq(a: Type, b: Type) -> bool:
+    """Compare record types nominally: tags and field types must both match."""
     return a == b
 
 

@@ -2,14 +2,20 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Bounded call-string context: holds up to the `k` most recent call-site labels
+/// leading to the current function invocation (`vec![]` when `k == 0`).
 type CallString = Vec<&'static str>;
 
+/// Abstract heap object created at an allocation site, carrying both its site label
+/// and its concrete `class_type` so virtual calls can resolve vtable targets on the fly.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct HeapSite {
     label: &'static str,
     class_type: &'static str,
 }
 
+/// Five-statement interprocedural IR supporting allocation, copy, direct calls,
+/// dynamically dispatched virtual calls, and returns.
 #[derive(Clone, Debug)]
 enum Stmt {
     Alloc {
@@ -44,6 +50,7 @@ struct Function {
     stmts: Vec<Stmt>,
 }
 
+/// Whole program IR with an entry function and `(class_type, method) -> callee` dispatch table.
 #[derive(Clone, Debug)]
 struct Program {
     entry: &'static str,
@@ -51,6 +58,9 @@ struct Program {
     vtable: BTreeMap<(&'static str, &'static str), &'static str>,
 }
 
+/// Transition rule for `k`-CFA call strings: append `site` and retain at most the last `k` sites.
+/// Invariant: `result.len() <= k`. Because the set of call sites is finite, each function has
+/// at most `|sites|^k` contexts, forcing fixed-point termination even with recursion.
 fn push_call_string(ctx: &[&'static str], site: &'static str, k: usize) -> CallString {
     if k == 0 {
         return Vec::new();
@@ -73,6 +83,8 @@ struct DiscoveredCallEdge {
     callee_ctx: CallString,
 }
 
+/// Converged `k`-CFA solution: context-qualified points-to map, discovered call edges,
+/// and reachable `(function, call_string)` pairs.
 #[derive(Clone, Debug)]
 struct PointsToResult {
     pts: BTreeMap<(&'static str, CallString, &'static str), BTreeSet<HeapSite>>,
@@ -81,6 +93,7 @@ struct PointsToResult {
 }
 
 impl PointsToResult {
+    /// Union points-to labels for `(func, var)` across all reachable contexts of `func`.
     fn merged_var(&self, func: &'static str, var: &'static str) -> BTreeSet<&'static str> {
         let mut out = BTreeSet::new();
         for ((f, _ctx, v), sites) in &self.pts {
@@ -94,6 +107,10 @@ impl PointsToResult {
     }
 }
 
+/// Jointly compute reachable contexts, on-the-fly virtual call graph edges, and context-sensitive
+/// points-to sets via monotonic fixed-point iteration.
+/// Key invariant: virtual calls only instantiate targets for `HeapSite`s already observed in
+/// `pts[(func, ctx, receiver)]`, and only newly discovered `(callee, callee_ctx)` pairs are evaluated.
 fn solve_k_cfa(program: &Program, k: usize) -> PointsToResult {
     let mut pts: BTreeMap<(&'static str, CallString, &'static str), BTreeSet<HeapSite>> =
         BTreeMap::new();

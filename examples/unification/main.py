@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import unittest
 
 
+# Type term AST: type variables (TVar), base types (TInt, TBool), and function arrows (TFunc).
 @dataclass(frozen=True)
 class TVar:
     id: int
@@ -42,6 +43,7 @@ class ClashError(TypeError):
 
 
 def resolve(ty: Type, substitutions: dict[int, Type]) -> Type:
+    """Apply `substitutions` transitively to variables and recursively inside `TFunc`."""
     if isinstance(ty, TVar):
         bound = substitutions.get(ty.id)
         return ty if bound is None else resolve(bound, substitutions)
@@ -51,6 +53,7 @@ def resolve(ty: Type, substitutions: dict[int, Type]) -> Type:
 
 
 def occurs(var_id: int, ty: Type) -> bool:
+    """Return True if `var_id` appears in `ty`, preventing cyclic infinite types."""
     if isinstance(ty, TVar):
         return ty.id == var_id
     if isinstance(ty, TFunc):
@@ -59,10 +62,12 @@ def occurs(var_id: int, ty: Type) -> bool:
 
 
 def unify(equations: list[tuple[Type, Type]]) -> dict[int, Type]:
+    """Solve type equality constraints via a worklist, preserving acyclic substitutions."""
     work = list(equations)
     substitutions: dict[int, Type] = {}
     while work:
         raw_left, raw_right = work.pop()
+        # Resolving both sides first exposes indirect chains (e.g. t0 -> t1 -> Int) and cycles.
         left = resolve(raw_left, substitutions)
         right = resolve(raw_right, substitutions)
         if left == right:
@@ -76,6 +81,7 @@ def unify(equations: list[tuple[Type, Type]]) -> dict[int, Type]:
                 raise InfiniteTypeError(right.id)
             substitutions[right.id] = left
         elif isinstance(left, TFunc) and isinstance(right, TFunc):
+            # Function types unify iff both parameter and return types unify.
             work.extend([(left.src, right.src), (left.dst, right.dst)])
         else:
             raise ClashError(left, right)

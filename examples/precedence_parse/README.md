@@ -11,24 +11,48 @@ python3 -m unittest examples/precedence_parse/main.py
 
 ## What the example teaches
 
-An ambiguous grammar such as `E -> E + E | E * E | -E | id` admits multiple parse trees for `id + id * id`. Rather than encoding precedence tiers into separate nonterminals, a shift-reduce driver consults a precedence and associativity table to choose between shifting the lookahead operator and reducing the operator on top of the stack.
+### Why we need this / What problem this solves
+
+A naive unambiguous expression grammar forces you to stratify every precedence level into its own nonterminal (`Expr -> Expr + Term`, `Term -> Term * Factor`, `Factor -> ...`). Adding 10+ operator tiers (like C's precedence table) produces a bloated grammar and long chains of unit reductions. Worse, some ambiguities—like the **dangling-else** (`if c1 then if c2 then s1 else s2`)—are awkward to disambiguate purely in a grammar.
+
+Writing the natural **ambiguous grammar** `E -> E + E | E * E | -E | id` keeps the grammar tiny, but an ordinary LR generator flags **shift/reduce conflicts**: after reading `id + id`, seeing `*` leaves the parser unsure whether to *reduce* `id + id` first or *shift* `*`. **Operator-precedence / disambiguation rules** solve this cleanly by comparing the top operator on the stack against the lookahead operator via a small precedence/associativity table (plus `%prec` for unary `-`, and "shift beats reduce" for `else`).
 
 ### Resolution rules
 
 1. Higher precedence on the stack reduces before shifting a lower-precedence lookahead (`id * id + id` becomes `(id * id) + id`).
-2. Equal precedence uses associativity: `Left` reduces (`id - id - id` becomes `(id - id) - id`), `Right` shifts (`id ^ id ^ id` becomes `id ^ (id ^ id)`), and `NonAssoc` rejects chained comparisons (`a < b < c`).
-3. A `%prec` override lets unary `-` bind tighter than `*` while remaining looser than `^`.
-4. For `if c1 then if c2 then s1 else s2`, shifting `else` binds it to the innermost open `if`.
+2. Equal precedence uses associativity: `Left` reduces (`id - id - id` becomes `(id - id) - id`), `Right` shifts (`id ^ id ^ id` becomes `id ^ (id ^ id)`), and `NonAssoc` (`Neither`) rejects chained comparisons (`a < b < c`).
+3. A `%prec` override lets unary `-` (precedence `4`) bind tighter than `*` (`3`) while remaining looser than `^` (`5`).
+4. For `if c1 then if c2 then s1 else s2`, shifting `else` when `IfHeader` sits below `Reduced(s1)` binds `else` to the innermost open `if`.
 
-### Precedence table
+### Precedence table and stack trace
 
 | Operator | Precedence | Associativity |
 | --- | --- | --- |
-| `<` | 1 | `NonAssoc` |
-| `+`, `-` (binary) | 2 | `Left` |
-| `*` | 3 | `Left` |
-| `-` (unary `%prec`) | 4 | `Right` |
-| `^` | 5 | `Right` |
+| `<` | `1` | `NonAssoc` |
+| `+`, `-` (binary) | `2` | `Left` |
+| `*` | `3` | `Left` |
+| `-` (unary `%prec`) | `4` | `Right` |
+| `^` | `5` | `Right` |
+
+Trace for `id + id * id`:
+
+| Remaining tokens | Value stack | Op stack | Decision |
+| --- | --- | --- | --- |
+| `id + id * id` | `[id]` | `[]` | Shift `id` (`expect_operand = false`) |
+| `+ id * id` | `[id]` | `[+]` | Op stack empty -> push `+` |
+| `id * id` | `[id, id]` | `[+]` | Shift `id` |
+| `* id` | `[id, id]` | `[+, *]` | `prec(+) = 2 < prec(*) = 3` -> **shift** `*` |
+| `id` | `[id, id, id]` | `[+, *]` | Shift `id` |
+| *(EOF)* | `[(id + (id * id))]` | `[]` | Reduce `*`, then reduce `+` |
+
+### How to read the code
+
+| Component | Rust (`main.rs`) | Python (`main.py`) | Role |
+| --- | --- | --- | --- |
+| Operator & AST types | `Op`, `Assoc`, `Token`, `Expr`, `Stmt` | `Op`, `Assoc`, `Expr` classes, `Stmt` classes | Precedence keys, associativity modes, and expression/if-statement ASTs |
+| Precedence table | `default_prec_table`, `should_reduce` | `default_prec_table`, `should_reduce` | Compares `(top_prec, top_assoc)` vs. `lookahead_prec` |
+| Expression parser | `tokenize_expr`, `reduce_top`, `parse_expr` | `tokenize_expr`, `parse_expr` | Shunting-yard / operator-precedence parser with `expect_operand` unary detection |
+| Dangling-else parser | `fn parse_if_stmts` | `def parse_if_stmts` | Explicit shift-reduce stack resolving `else` via shift-beats-reduce |
 
 ## What to look for
 

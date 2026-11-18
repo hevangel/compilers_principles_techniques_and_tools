@@ -4,23 +4,28 @@ from dataclasses import dataclass
 import sys
 import unittest
 
+# Signed 64-bit two's-complement bounds so Python matches Rust's wrapping i64 VM.
 I64_MASK = (1 << 64) - 1
 I64_MIN = -(1 << 63)
 I64_MAX = (1 << 63) - 1
 
 
 def wrap_i64(value: int) -> int:
+    """Wrap an arbitrary-precision Python int to signed 64-bit two's-complement."""
     masked = value & I64_MASK
     return masked - (1 << 64) if masked >= (1 << 63) else masked
 
 
 @dataclass(frozen=True)
 class Token:
+    """Lexical unit emitted by `lex` and consumed by `Compiler`."""
+
     kind: str
     value: object = None
 
 
 def lex(source: str) -> list[Token]:
+    """Scan UTF-8/ASCII source text into tokens using longest-match rules."""
     raw = source.encode("utf-8")
     tokens: list[Token] = []
     end = 0
@@ -31,6 +36,7 @@ def lex(source: str) -> list[Token]:
         if chr(byte).isspace() and byte < 128:
             continue
         if (65 <= byte <= 90) or (97 <= byte <= 122):
+            # Consume the entire identifier before matching keywords (`let`, `emit`).
             while end < len(raw) and (
                 48 <= raw[end] <= 57 or 65 <= raw[end] <= 90 or 97 <= raw[end] <= 122
             ):
@@ -46,6 +52,7 @@ def lex(source: str) -> list[Token]:
             while end < len(raw) and 48 <= raw[end] <= 57:
                 end += 1
             value = int(raw[start:end].decode("ascii"))
+            # Reject literals exceeding signed 64-bit max at compile time.
             if value > I64_MAX:
                 raise ValueError(f"integer literal at byte {start} is too large")
             tokens.append(Token("Number", value))
@@ -68,20 +75,27 @@ def lex(source: str) -> list[Token]:
 
 @dataclass(frozen=True)
 class Inst:
+    """Single bytecode instruction for the stack machine."""
+
     op: str
     arg: int | None = None
 
 
 @dataclass
 class Program:
+    """Compiled bytecode stream plus the number of variable slots required."""
+
     slots: int
     code: list[Inst]
 
 
 class Compiler:
+    """Single-pass recursive-descent parser, symbol table, and stack-code emitter."""
+
     def __init__(self, tokens: list[Token]) -> None:
         self.tokens = tokens
         self.pos = 0
+        # Compile-time symbol table mapping variable names to slot indices.
         self.slots: dict[str, int] = {}
         self.code: list[Inst] = []
 
@@ -95,6 +109,7 @@ class Compiler:
         return tok
 
     def eat(self, kind: str) -> bool:
+        """Consume the next token only if its kind matches `kind`."""
         tok = self.peek()
         if tok is not None and tok.kind == kind:
             self.pos += 1
@@ -106,6 +121,7 @@ class Compiler:
             raise ValueError(f"expected {kind}")
 
     def factor(self, depth: int) -> None:
+        """Parse a primary value (number, variable, or parenthesized expr); net stack effect +1."""
         tok = self.next_token()
         if tok is None:
             raise ValueError("expected an integer, a name, or an opening parenthesis")
@@ -117,6 +133,7 @@ class Compiler:
                 raise ValueError(f"unknown name {name}")
             self.code.append(Inst("Load", self.slots[name]))
         elif tok.kind == "Open":
+            # Guard against unbounded recursion on deeply nested parentheses.
             if depth >= 64:
                 raise ValueError("parentheses nested too deeply")
             self.expression(depth + 1)
@@ -125,18 +142,21 @@ class Compiler:
             raise ValueError("expected an integer, a name, or an opening parenthesis")
 
     def term(self, depth: int) -> None:
+        """Parse multiplication chains so `*` binds tighter than `+`; net stack effect +1."""
         self.factor(depth)
         while self.eat("Star"):
             self.factor(depth)
             self.code.append(Inst("Mul"))
 
     def expression(self, depth: int) -> None:
+        """Parse left-associative addition chains; emits Add after both operands (+1 stack)."""
         self.term(depth)
         while self.eat("Plus"):
             self.term(depth)
             self.code.append(Inst("Add"))
 
     def statement(self) -> None:
+        """Parse one `let` or `emit` statement; leaves the VM stack empty (net 0)."""
         tok = self.next_token()
         if tok is not None and tok.kind == "Let":
             name_tok = self.next_token()
@@ -147,6 +167,7 @@ class Compiler:
                 raise ValueError(f"duplicate declaration of {name}")
             self.expect("Equal")
             self.expression(0)
+            # Register the variable only after compiling its initializer so `let a = a;` fails.
             slot = len(self.slots)
             self.slots[name] = slot
             self.code.append(Inst("Store", slot))
@@ -159,6 +180,7 @@ class Compiler:
 
 
 def compile_source(source: str) -> Program:
+    """Lex and compile a full sequence of statements into a `Program`."""
     compiler = Compiler(lex(source))
     while compiler.peek() is not None:
         compiler.statement()
@@ -166,6 +188,7 @@ def compile_source(source: str) -> Program:
 
 
 def execute(program: Program) -> list[int]:
+    """Run compiled bytecode on an operand stack and fixed slot array."""
     stack: list[int] = []
     slots = [0] * program.slots
     output: list[int] = []
@@ -180,6 +203,7 @@ def execute(program: Program) -> list[int]:
             assert inst.arg is not None
             slots[inst.arg] = stack.pop()
         elif inst.op in ("Add", "Mul"):
+            # Right operand sits on top because it was evaluated/pushed second.
             right = stack.pop()
             left = stack.pop()
             value = wrap_i64(left + right if inst.op == "Add" else left * right)

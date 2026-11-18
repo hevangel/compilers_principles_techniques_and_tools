@@ -73,6 +73,52 @@
     dd { margin: 0; }
     pre { padding: .8rem 1rem; overflow-x: auto; background: var(--code-head); border-radius: .35rem; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+    .study-note {
+      margin: .9rem 0 1.25rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--link);
+      border-radius: .4rem;
+      padding: .75rem 1.1rem;
+    }
+    .study-note > summary {
+      cursor: pointer;
+      font-family: Georgia, serif;
+      font-weight: 700;
+      font-size: 1.02rem;
+      color: var(--link);
+      list-style-position: outside;
+      margin-left: .9rem;
+    }
+    .study-note[open] > summary {
+      margin-bottom: .65rem;
+      padding-bottom: .45rem;
+      border-bottom: 1px solid #ebe4d6;
+    }
+    .study-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+      gap: .65rem 1.15rem;
+      margin-top: .35rem;
+    }
+    .study-block h3 {
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin: 0 0 .25rem;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .study-block p, .study-block ul {
+      font-size: .93rem;
+      margin: .2rem 0;
+    }
+    .study-block ul {
+      padding-left: 1.15rem;
+    }
+    .study-block li {
+      margin: .2rem 0;
+    }
     footer { padding-block: 1.5rem; color: var(--muted); }
 
     /* Single-page app reader / source viewer */
@@ -197,6 +243,26 @@
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
       <p>A compiler translates a program from one language into another. Follow one tiny program from source text through tokens, grammatical structure, name resolution, and bytecode. Then run the bytecode on a stack machine and track what each instruction does.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Chapters 1 &amp; 2: What is a compiler, and why is it built as a pipeline?</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this chapter is about</h3>
+            <p>A zoomed-out tour of every major stage in a compiler—scanning, parsing, semantic binding, and code generation—using one tiny language before diving into algorithms.</p>
+          </div>
+          <div class="study-block">
+            <h3>The "Why?" question</h3>
+            <p>Programmers write nested arithmetic and named variables, while a CPU or VM only executes flat instructions on numbered slots or registers. Splitting compilation into stages keeps syntax, scoping, and execution cleanly separated instead of a fragile string-replacement script.</p>
+          </div>
+          <div class="study-block">
+            <h3>How to study this section</h3>
+            <ul>
+              <li>Read <a href="examples/tiny_compiler/README.md">A tiny compiler and stack machine</a> to trace <code>emit boxes * perbox + 3;</code> end-to-end.</li>
+              <li>Switch between the Rust and Python tabs to compare systems vs. scripting implementations side-by-side.</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <p>Use Rust 1.85 or later (or Python 3.11 or later) and run these commands in the repository root.</p>
       <pre><code>cargo run --example tiny_compiler
 cargo test --all-targets --locked
@@ -218,6 +284,27 @@ python3 -m unittest examples/*/main.py</code></pre>
     <section id="front-end" aria-labelledby="front-end-title">
       <h2 id="front-end-title">Scanning and parsing</h2>
       <p>Scanning groups characters into tokens, such as names and operators. Parsing checks how those tokens fit together according to a grammar. This section covers regular expressions, Thompson/direct automata, DFA minimization, grammar rewriting, top-down and bottom-up parsers, ambiguity resolution, and syntax-error recovery.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Chapters 3 &amp; 4: Why split lexical scanning from grammar parsing?</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this chapter is about</h3>
+            <p>Turning raw UTF-8 characters into classified tokens using finite automata, then recognizing nested hierarchical syntax with linear-time deterministic parsers.</p>
+          </div>
+          <div class="study-block">
+            <h3>The "Why?" question</h3>
+            <p>Finite automata match flat words in linear time without backtracking, but cannot count arbitrary nesting like <code>((a + b))</code>. Splitting regex-based lexing from context-free parsing (<code>LL(1)</code> top-down and <code>SLR/LALR/LR(1)</code> bottom-up) keeps grammars clean, avoids exponential backtracking, and gives crisp error recovery.</p>
+          </div>
+          <div class="study-block">
+            <h3>How the 10 examples fit together</h3>
+            <ul>
+              <li><strong>Lexers &amp; automata:</strong> <code>lexer</code> → <code>regex_automata</code> → <code>subset_dfa</code> → <code>dfa_minimize</code>.</li>
+              <li><strong>Top-down parsing:</strong> <code>grammar_rewrite</code> (remove left recursion) → <code>ll1</code> (<code>FIRST</code>/<code>FOLLOW</code>).</li>
+              <li><strong>Bottom-up &amp; recovery:</strong> <code>slr</code> → <code>lalr</code> → <code>precedence_parse</code> → <code>recovery</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/lexer/README.md">Tokens and longest match</a></h3>
@@ -324,6 +411,27 @@ python3 -m unittest examples/*/main.py</code></pre>
     <section id="translation" aria-labelledby="translation-title">
       <h2 id="translation-title">Translation and semantic analysis</h2>
       <p>Semantic analysis resolves names, infers polymorphic types, handles coercions and overloadings, and computes aligned record and array addresses. Syntax-directed translation turns parse trees into DAGs, SSA graphs, three-address IR, switch dispatch, and backpatched jumps.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Chapters 5 &amp; 6: How do we check meaning and turn trees into clean intermediate code?</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this chapter is about</h3>
+            <p>Validating rules context-free grammars cannot express (scoping, types, memory alignment) and lowering high-level syntax into Intermediate Representation (IR) such as DAGs, three-address quadruples, and SSA form.</p>
+          </div>
+          <div class="study-block">
+            <h3>The "Why?" question</h3>
+            <p>A parser accepts <code>x = a + b;</code> as valid syntax even if <code>a</code> is undeclared, mixes incompatible types, or indexes a 2D array that the CPU sees only as raw bytes. Syntax-directed attributes, type inference, and one-pass control-flow lowering turn source syntax into an analyzer-friendly IR.</p>
+          </div>
+          <div class="study-block">
+            <h3>How the 12 examples fit together</h3>
+            <ul>
+              <li><strong>Attributes &amp; IR graphs:</strong> <code>attributes</code> → <code>sdd_eval</code> → <code>expr_dag</code> → <code>ssa</code>.</li>
+              <li><strong>Names &amp; types:</strong> <code>scope_types</code> → <code>unification</code> → <code>poly_infer</code> → <code>overload_coerce</code>.</li>
+              <li><strong>Control flow &amp; layout:</strong> <code>array_layout</code>, <code>record_ir</code>, <code>backpatch</code>, <code>switch_lower</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/attributes/README.md">Inherited and synthesized attributes</a></h3>
@@ -450,6 +558,27 @@ python3 -m unittest examples/*/main.py</code></pre>
     <section id="runtime" aria-labelledby="runtime-title">
       <h2 id="runtime-title">Runtime and code generation</h2>
       <p>A compiled program needs ways to organize activation records and variable-length stack arrays, collect garbage across generations or incrementally, allocate registers globally, tile expression trees, and emit target instructions.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Chapters 7 &amp; 8: How does code manage memory at runtime and map onto finite CPU registers?</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this chapter is about</h3>
+            <p>Designing the call stack (frames, static links, displays), automating heap reclamation (garbage collection), and lowering IR to real target instructions with limited hardware registers.</p>
+          </div>
+          <div class="study-block">
+            <h3>The "Why?" question</h3>
+            <p>Source code treats memory and temporaries as unlimited, but hardware gives you one call stack, finite heap, and ~8–32 registers. Without disciplined stack links, cycle-safe tracing GC, and smart register allocation/spilling, recursive functions lose outer variables, heaps leak, and loops thrash memory.</p>
+          </div>
+          <div class="study-block">
+            <h3>How the 9 examples fit together</h3>
+            <ul>
+              <li><strong>Call stack &amp; scoping:</strong> <code>frames</code> (static links) → <code>display_vla</code> (O(1) displays &amp; stack VLAs).</li>
+              <li><strong>Garbage collection:</strong> <code>mark_sweep</code> → <code>copying_gc</code> (Cheney &amp; compaction) → <code>generational_gc</code> (write barriers &amp; tri-color).</li>
+              <li><strong>Target codegen:</strong> <code>register_codegen</code> (Ershov order) → <code>reg_desc_codegen</code> (<code>getReg</code>) → <code>graph_color_regalloc</code> → <code>dp_tiling</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/frames/README.md">Activation records and static links</a></h3>
@@ -546,6 +675,28 @@ python3 -m unittest examples/*/main.py</code></pre>
     <section id="optimization" aria-labelledby="optimization-title">
       <h2 id="optimization-title">Optimization and program analysis</h2>
       <p>Optimizations preserve observable behavior using sound analysis facts: local value numbering, classic bitvector and lattice data-flow frameworks, lazy code motion, loop optimizations, T1/T2 region analysis, modulo scheduling, polyhedral dependence &amp; affine partitioning, and context-sensitive / Datalog-ROBDD pointer analysis.</p>
+      <details class="study-note" open>
+        <summary>Study Note — Chapter 9–12: How do we make code faster without changing what it means?</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3>What this chapter is about</h3>
+            <p>Static program analysis (data-flow, loops, scheduling, parallelism, and pointer aliasing) that proves mathematical facts across every possible execution path so transformations stay bug-free.</p>
+          </div>
+          <div class="study-block">
+            <h3>The "Why?" question</h3>
+            <p>Guessing that <code>a + b</code> hasn't changed or that two loops can run in parallel causes silent miscompilation if a branch or pointer alias disagrees. We need <strong>sound</strong> conservative rules (<em>may</em> vs. <em>must</em>) that only optimize when proven safe on all paths.</p>
+          </div>
+          <div class="study-block">
+            <h3>How the 17 examples fit together</h3>
+            <ul>
+              <li><strong>Local &amp; global data-flow:</strong> <code>value_numbering</code> → <code>liveness</code>, <code>reaching_defs</code>, <code>available_exprs</code>, <code>const_prop</code>, <code>lazy_code_motion</code>.</li>
+              <li><strong>Loops &amp; regions:</strong> <code>natural_loops</code> → <code>licm_iv</code> → <code>region_dataflow</code>.</li>
+              <li><strong>Instruction &amp; cache parallelism:</strong> <code>list_schedule</code>, <code>software_pipeline</code>, <code>loop_locality</code>, <code>dependence_test</code>, <code>affine_partition</code>.</li>
+              <li><strong>Pointers:</strong> <code>points_to</code> → <code>context_points_to</code> → <code>datalog_bdd</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </details>
       <ul class="examples">
         <li><article>
           <h3><a href="examples/value_numbering/README.md">Local value numbering</a></h3>
@@ -1322,8 +1473,22 @@ python3 -m unittest examples/*/main.py</code></pre>
     function splitTableRow(line) {
       let s = line.trim();
       if (s.startsWith("|")) s = s.slice(1);
-      if (s.endsWith("|")) s = s.slice(0, -1);
-      return s.split("|").map((c) => c.trim());
+      if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
+      const cells = [];
+      let cur = "";
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === "\\" && s[i + 1] === "|") {
+          cur += "|";
+          i++;
+        } else if (s[i] === "|") {
+          cells.push(cur.trim());
+          cur = "";
+        } else {
+          cur += s[i];
+        }
+      }
+      cells.push(cur.trim());
+      return cells;
     }
 
     function renderMarkdown(md) {
