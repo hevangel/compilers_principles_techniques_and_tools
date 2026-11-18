@@ -66,6 +66,14 @@ Scanning groups characters into tokens, such as names and operators, across inpu
 | [Panic-mode recovery](examples/recovery/README.md) | 11 | 4 | 4 |
 | [LL(1) Synchronization Sets and LR Error Recovery (Ch. 4)](examples/parser_error_recovery/README.md) | 11 | 4 (§4.4, §4.7–4.8) | 4 (§4.4.5, §4.7–4.8) |
 
+#### Extended resources: tools, real compilers, language design & macros
+
+Companion reference guides under [`docs/`](docs/open_source_lexer_parser_tools.md) connect these examples to production tooling, language-design literature, and macro architectures:
+
+- **[Open-Source Lexer & Parser Tools, Real Compilers & Algorithm Comparison](docs/open_source_lexer_parser_tools.md)** — Documents **Flex**, **re2c / re2rust**, **Logos**, **JFlex**, and **Ragel** (lexer generators); **GNU Bison**, **LALRPOP**, **ANTLR 4**, **Tree-sitter**, and **Java CUP** (parser generators); real compiler front ends (**GCC**, **Clang**, **rustc**, **Go**, **V8**, **CPython**, **Verible**, **Xezim**, **Slopman-e**) with primary links; the **implementation vs. parsing-strategy** distinction (without assigning unproved `LL(n)` classes); why **`LALR(1)` is not universally best**; concrete shift/reduce, reduce/reduce, precedence, associativity, and dangling-else parse trees; and classical Floyd operator-precedence vs. LR precedence declarations.
+- **[A Reference Guide to Programming-Language Design](docs/language_design_guide.md)** — Separates *compilation* (Dragon Book) from *language design* (evaluation order, scoping, types, memory management, modules, concurrency, macro semantics, diagnostics), with a suggested 7-book reading sequence spanning *Programming Language Pragmatics*, *Crafting Interpreters*, *Types and Programming Languages*, *PFPL*, and *The Design and Evolution of C++*.
+- **[Macro Systems Architecture](docs/macro_systems.md)** — Distinguishes **lexer-specification macros** (`{digit}` before automata in [`lex_generator`](examples/lex_generator/README.md)), **token-based preprocessors** (C `cpp`, SystemVerilog `` `define `` / `` `ifdef ``), and **syntax-aware macros** (Rust `macro_rules!`, Lisp `defmacro`, Scheme hygienic `syntax-rules`), explaining why macros are not regex substitutions and outlining a future `macro_systems` module.
+
 ### Advanced parsing techniques (modern extensions)
 
 These five examples cover modern post-Dragon-Book front-end parsing and lexing techniques (labeled explicitly as modern extensions rather than historical Green/Red/Purple textbook chapters).

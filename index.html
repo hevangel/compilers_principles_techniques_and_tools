@@ -529,6 +529,27 @@ python3 -m unittest examples/*/main.py</code></pre>
           <p><a href="examples/parser_error_recovery/main.rs">Rust source</a> · <a href="examples/parser_error_recovery/main.py">Python source</a></p>
         </article></li>
       </ul>
+      <details class="study-note" open>
+        <summary>Extended Resources — Open-Source Tools, Real Compilers, Parsing Comparison, Language Design &amp; Macros</summary>
+        <div class="study-grid">
+          <div class="study-block">
+            <h3><a href="docs/open_source_lexer_parser_tools.md">Open-Source Tools &amp; Real Compilers</a></h3>
+            <ul>
+              <li><strong>Lexer &amp; parser tools:</strong> <code>Flex</code>, <code>re2c/re2rust</code>, <code>Logos</code>, <code>JFlex</code>, <code>Ragel</code>; <code>GNU Bison</code>, <code>LALRPOP</code>, <code>ANTLR 4</code>, <code>Tree-sitter</code>, <code>Java CUP</code>.</li>
+              <li><strong>Production front ends:</strong> <code>GCC</code>, <code>Clang</code>, <code>rustc</code>, <code>Go</code>, <code>V8</code>, <code>CPython</code> (PEG), <code>Verible</code> (Flex+Bison counterexample), <code>Xezim</code>, <code>Slopman-e</code>.</li>
+              <li><strong>Algorithms &amp; rigor:</strong> Implementation (handwritten vs. generated) vs. strategy (<code>LL</code>/<code>LR</code>/<code>LALR</code>/<code>IELR</code>/<code>GLR</code>/<code>PEG</code>/<code>Pratt</code>), why <code>LALR(1)</code> isn't universally best, and S/R, R/R, &amp; dangling-else trees.</li>
+            </ul>
+          </div>
+          <div class="study-block">
+            <h3><a href="docs/language_design_guide.md">Programming-Language Design Guide</a></h3>
+            <p>Why language design spans far beyond <code>LL</code>/<code>LR</code> grammar classes (scoping, evaluation order, types, memory management, modules, macros, concurrency, compatibility), with a 7-book reading roadmap (<em>Programming Language Pragmatics</em>, <em>Crafting Interpreters</em>, <em>TAPL</em>, <em>PFPL</em>, <em>D&amp;E of C++</em>).</p>
+          </div>
+          <div class="study-block">
+            <h3><a href="docs/macro_systems.md">Macro Systems Architecture</a></h3>
+            <p>Separates <strong>lexer regex macros</strong> (<code>{digit}</code> in <code>lex_generator</code>), <strong>token preprocessors</strong> (C <code>cpp</code>, SystemVerilog <code>`define</code>/<code>`ifdef</code>), and <strong>syntax-aware macros</strong> (Rust <code>macro_rules!</code>, Lisp <code>defmacro</code>, Scheme hygienic <code>syntax-rules</code>).</p>
+          </div>
+        </div>
+      </details>
     </section>
     <section id="advanced-parsing" aria-labelledby="advanced-parsing-title">
       <h2 id="advanced-parsing-title">Advanced parsing techniques (modern extensions)</h2>
@@ -1268,6 +1289,18 @@ python3 -m unittest examples/*/main.py</code></pre>
       let html = `<div class="sidebar-group">`;
       html += `<a class="sidebar-link${activePath === "README.md" ? " active" : ""}" href="#/README.md">Repository README</a>`;
       html += `</div>`;
+      const docGuides = [
+        { path: "docs/open_source_lexer_parser_tools.md", title: "Open-Source Tools & Real Compilers" },
+        { path: "docs/language_design_guide.md", title: "Programming-Language Design Guide" },
+        { path: "docs/macro_systems.md", title: "Macro Systems Architecture" },
+      ].filter((d) => !q || d.title.toLowerCase().includes(q) || d.path.toLowerCase().includes(q));
+      if (docGuides.length > 0) {
+        html += `<div class="sidebar-group"><div class="sidebar-group-title">Extended resources (docs/)</div><ul class="sidebar-list">`;
+        for (const d of docGuides) {
+          html += `<li><a class="sidebar-link${activePath === d.path ? " active" : ""}" href="#/${d.path}">${escapeHtml(d.title)}</a></li>`;
+        }
+        html += `</ul></div>`;
+      }
       for (const g of groups) {
         const matched = g.items.filter(
           (it) => !q || it.title.toLowerCase().includes(q) || it.slug.toLowerCase().includes(q)
@@ -1978,7 +2011,7 @@ python3 -m unittest examples/*/main.py</code></pre>
       }
       const raw = h.slice(1);
       if (SECTION_IDS.includes(raw)) return { mode: "catalog", hash: raw };
-      if (/^(?:README\.md|examples\/[^#]+\.(?:md|rs|py))$/.test(raw)) {
+      if (/^(?:README\.md|(?:examples|docs)\/[^#]+\.(?:md|rs|py))$/.test(raw)) {
         return { mode: "doc", path: raw, frag: "" };
       }
       if (currentDocPath) return { mode: "same-doc-anchor", hash: raw };
