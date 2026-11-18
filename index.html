@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="53 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
+  <meta name="description" content="55 original Rust and Python examples for the 1977, 1986, and 2006 Dragon Books.">
   <title>The Dragon Book in Rust and Python</title>
   <style>
     :root {
@@ -214,12 +214,12 @@
         <h1>The Dragon Book in Rust and Python</h1>
       </div>
       <div class="header-actions">
-        <a class="btn" href="#/">Catalog (53)</a>
+        <a class="btn" href="#/">Catalog (55)</a>
         <a class="btn" href="README.md">Repository README</a>
         <a class="btn primary" href="examples/tiny_compiler/README.md">Start Tour</a>
       </div>
     </div>
-    <p class="intro">53 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
+    <p class="intro">55 original programs in both Rust and Python covering core compiler algorithms across the Green (1977), Red (1986), and Purple (2006) books. Click any guide to read rendered Markdown or open Rust and Python sources directly inside this page.</p>
     <nav aria-label="Example topics">
       <ul>
         <li><a href="#start">Start here</a></li>
@@ -236,10 +236,10 @@
     <div id="catalog-view">
       <div class="catalog-toolbar" role="search">
         <div class="search-wrap">
-          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 53 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
+          <input id="catalog-search" class="search-input" type="search" placeholder="Filter 55 examples by title, topic, chapter, or slug (press /)" aria-label="Filter examples">
           <button id="catalog-clear" class="btn" type="button" hidden>Clear</button>
         </div>
-        <span id="catalog-count" class="filter-count">Showing 53 of 53 examples</span>
+        <span id="catalog-count" class="filter-count">Showing 55 of 55 examples</span>
       </div>
     <section id="start" aria-labelledby="start-title">
       <h2 id="start-title">Start here</h2>
@@ -444,12 +444,12 @@ python3 -m unittest examples/*/main.py</code></pre>
             <p>A parser accepts <code>x = a + b;</code> as valid syntax even if <code>a</code> is undeclared, mixes incompatible types, or indexes a 2D array that the CPU sees only as raw bytes. Syntax-directed attributes, type inference, and one-pass control-flow lowering turn source syntax into an analyzer-friendly IR.</p>
           </div>
           <div class="study-block">
-            <h3>How the 14 examples fit together</h3>
+            <h3>How the 16 examples fit together</h3>
             <ul>
               <li><strong>Attributes &amp; IR graphs:</strong> <code>attributes</code> → <code>sdd_eval</code> → <code>expr_dag</code> → <code>ssa</code>.</li>
               <li><strong>Names &amp; types:</strong> <code>scope_types</code> → <code>unification</code> → <code>poly_infer</code> → <code>overload_coerce</code>.</li>
               <li><strong>Control flow &amp; layout:</strong> <code>array_layout</code>, <code>record_ir</code>, <code>backpatch</code>, <code>switch_lower</code>.</li>
-              <li><strong>Appendix A capstones:</strong> <code>pascal_frontend</code> (1986 Pascal subset) and <code>complete_frontend</code> (2006 block-scoped AST &amp; jumping TAC).</li>
+              <li><strong>Appendix A capstones:</strong> <code>pascal_frontend</code> (1986 Pascal), <code>complete_frontend</code> (2006 Java/C-style), <code>rust_frontend</code> (Rust subset), and <code>python_frontend</code> (Python subset).</li>
             </ul>
           </div>
         </div>
@@ -594,6 +594,26 @@ python3 -m unittest examples/*/main.py</code></pre>
             <dt>2006 Purple</dt><dd>app. A (complete front end)</dd>
           </dl>
           <p><a href="examples/complete_frontend/main.rs">Rust source</a> · <a href="examples/complete_frontend/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/rust_frontend/README.md">Rust-Subset Compiler Front End (Appendix A)</a></h3>
+          <p>Lex nested <code>/* /* ... */ */</code> comments, enforce <code>let</code>/<code>let mut</code> immutability &amp; shadowing, check expression blocks and explicit <code>as</code> casts into TAC.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>2, 6, 8</dd>
+            <dt>2006 Purple</dt><dd>app. A (Rust front end)</dd>
+          </dl>
+          <p><a href="examples/rust_frontend/main.rs">Rust source</a> · <a href="examples/rust_frontend/main.py">Python source</a></p>
+        </article></li>
+        <li><article>
+          <h3><a href="examples/python_frontend/README.md">Python-Subset Compiler Front End (Appendix A)</a></h3>
+          <p>Scan off-side <code>INDENT</code>/<code>DEDENT</code> blocks, pre-scan <code>def</code> local-vs-<code>global</code> scopes, distinguish <code>/</code> vs. <code>//</code>, and lower negative list indexing into TAC.</p>
+          <dl aria-label="Related chapters by edition">
+            <dt>1977 Green</dt><dd>—</dd>
+            <dt>1986 Red</dt><dd>2, 3, 6</dd>
+            <dt>2006 Purple</dt><dd>app. A (Python front end)</dd>
+          </dl>
+          <p><a href="examples/python_frontend/main.rs">Rust source</a> · <a href="examples/python_frontend/main.py">Python source</a></p>
         </article></li>
       </ul>
     </section>
@@ -925,7 +945,7 @@ python3 -m unittest examples/*/main.py</code></pre>
     </section>
     <section id="coverage-gaps" aria-labelledby="coverage-gaps-title">
       <h2 id="coverage-gaps-title">Coverage gaps</h2>
-      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators and <code>Appendix A</code> front-end architectures are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, and <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>.</p>
+      <p>This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions. The <code>.l</code>/<code>.y</code> DSL generators and <code>Appendix A</code> front-end architectures are covered in self-contained form by <a href="examples/lex_generator/README.md"><code>lex_generator</code></a>, <a href="examples/yacc_generator/README.md"><code>yacc_generator</code></a>, <a href="examples/pascal_frontend/README.md"><code>pascal_frontend</code></a>, <a href="examples/complete_frontend/README.md"><code>complete_frontend</code></a>, <a href="examples/rust_frontend/README.md"><code>rust_frontend</code></a>, <a href="examples/python_frontend/README.md"><code>python_frontend</code></a>, and <a href="examples/tiny_compiler/README.md"><code>tiny_compiler</code></a>.</p>
       <ul>
         <li><strong>Global trace/superblock scheduling.</strong> Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (<code>§10.4</code>) out of scope.</li>
         <li><strong>Historical survey chapters.</strong> Compiler history and architectural surveys (<code>1977 Green</code> Ch. 1–2 language survey and Appendix B; <code>1986 Red</code> Ch. 11–12 historical compiler notes) have no standalone demos.</li>
