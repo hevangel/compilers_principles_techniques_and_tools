@@ -1,6 +1,6 @@
 # The Dragon Book in Rust and Python
 
-49 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
+51 original Rust and Python demonstrations of compiler concepts from the books commonly known as the Dragon Book. Start with a small compiler and stack machine, or run an individual example to see one technique in isolation. Each example has a guide beside both its Rust and Python sources, and you can browse the full catalog on [GitHub Pages](https://hevangel.github.io/compilers_principles_techniques_and_tools/).
 
 ## Run the examples
 
@@ -72,6 +72,8 @@ A valid grammatical structure is the starting point for checking what a program 
 | [Backpatching and short-circuit jumps](examples/backpatch/README.md) | 7 (Boolean translation) | 8 | 6 |
 | [Switch Lowering and Break/Continue Backpatching](examples/switch_lower/README.md) | 7 | 8 | 6 |
 | [Record Field Layout and Quadruple / Triple / Indirect-Triple IR](examples/record_ir/README.md) | 2, 8 | 8 | 6 |
+| [Pascal-Subset Compiler Front End (1986 Appendix A)](examples/pascal_frontend/README.md) | — | app. A (Pascal project) | 2, 6 |
+| [Complete Structured Front End: Lexer, Scoped AST, and TAC (2006 Appendix A)](examples/complete_frontend/README.md) | — | 2, 6, 8 | app. A (complete front end) |
 
 ### Runtime and code generation
 
@@ -115,9 +117,9 @@ An optimization changes how a program runs while preserving its observable behav
 
 ## Coverage gaps
 
-This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendix B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.
+This is a concept companion with independently written programs, inputs, and explanations. Core algorithms across all editions' compiler pipeline chapters (Chapters 3–12 and Appendices A–B) are implemented in both Rust and Python, excluding textbook listings, figures, and exercise solutions.
 
-- **Full-language generators and appendix projects.** Standalone `.l`/`.y` file compilers (full Lex/Flex and Yacc/Bison DSL generators) and complete multi-thousand-line Pascal or Java front-end projects (`Appendix A`) remain outside this collection; `tiny_compiler` serves as the compact front-end and VM companion.
+- **Full-language generator DSLs.** Standalone `.l`/`.y` file compilers (full Lex/Flex and Yacc/Bison parser/scanner generator DSLs) remain outside this collection; the front-end architectures in `Appendix A` are covered in self-contained form by [`pascal_frontend`](examples/pascal_frontend/README.md) (1986 Pascal subset), [`complete_frontend`](examples/complete_frontend/README.md) (2006 structured block-scoped front end), and [`tiny_compiler`](examples/tiny_compiler/README.md).
 - **Global trace/superblock scheduling.** Chapter 10 covers basic-block list scheduling and cyclic modulo software pipelining, leaving multi-block trace/region code motion across speculative control flow (`§10.4`) out of scope.
 - **Historical survey chapters.** Compiler history and architectural surveys (`1977 Green` Ch. 1–2 language survey and Appendix B; `1986 Red` Ch. 11–12 historical compiler notes) have no standalone demos.
 
